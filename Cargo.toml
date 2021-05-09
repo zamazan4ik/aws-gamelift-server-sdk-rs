@@ -1,0 +1,15 @@
+[package]
+name = "aws-gamelift-server-sdk-rs"
+version = "0.1.0"
+authors = ["Alexander Zaitsev <zamazan4ik@tut.by>"]
+edition = "2018"
+
+[dependencies]
+prost = "0.7.0"
+
+[build-dependencies]
+prost-build = "0.7.0"
+
+[profile.release]
+opt-level = 3
+lto = true
