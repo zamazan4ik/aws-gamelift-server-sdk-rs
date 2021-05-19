@@ -1,45 +1,81 @@
 use futures_util::SinkExt;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
-pub mod sdk {
-    include!(concat!(
-        env!("OUT_DIR"),
-        "/com.amazon.whitewater.auxproxy.pbuffer.rs"
-    ));
-}
+const MESSAGE_TYPE_PREFIX: &'static str = "com.amazon.whitewater.auxproxy.pbuffer";
 
 pub struct AuxProxyMessageSender {
-    socket: futures_util::stream::SplitSink<
-        WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>,
-        tokio_tungstenite::tungstenite::Message,
-    >,
+    socket: rust_socketio::Socket,
 }
 
 impl AuxProxyMessageSender {
-    pub fn new(
-        socket: futures_util::stream::SplitSink<
-            WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>,
-            tokio_tungstenite::tungstenite::Message,
-        >,
-    ) -> Self {
+    pub fn new(socket: rust_socketio::Socket) -> Self {
         Self { socket }
     }
 
-    pub async fn process_ready(&mut self, port: i32, log_paths_to_upload: Vec<String>) {
-        let mut ready = sdk::ProcessReady::default();
-        ready.port = port;
-        ready.log_paths_to_upload = log_paths_to_upload;
+    pub fn process_ready(&mut self, port: i32, log_paths_to_upload: Vec<String>) {
+        let mut message = crate::sdk::ProcessReady::default();
+        message.port = port;
+        message.log_paths_to_upload = log_paths_to_upload;
 
+        self.send(message);
+    }
+
+    pub fn report_health(&mut self, health_status: bool) {
+        let mut message = crate::sdk::ReportHealth::default();
+        message.health_status = health_status;
+
+        self.send(message);
+    }
+
+    fn send<T>(&mut self, message: T)
+    where
+        T: serde::Serialize,
+    {
+        let json_payload = serde_json::to_string(&message).unwrap();
         self.socket
-            .send(tokio_tungstenite::tungstenite::Message::text("qwreyt"))
-            .await;
+            .emit(
+                format!("{}.{}", MESSAGE_TYPE_PREFIX, get_message_type(&message)),
+                json_payload,
+            )
+            .expect("Server unreachable");
     }
 }
 
-/*public ProcessReady(port: number, logPathsToUpload: string[]): Promise<GenericOutcome> {
-const pReady = new sdk.com.amazon.whitewater.auxproxy.pbuffer.ProcessReady()
-pReady.port = port
-pReady.logPathsToUpload = logPathsToUpload
+/*public ReportHealth(healthStatus: boolean): Promise<GenericOutcome> {
+const rHealth = new sdk.com.amazon.whitewater.auxproxy.pbuffer.ReportHealth()
+rHealth.healthStatus = healthStatus
 
-return this.EmitEventGeneric(pReady)
-}*/
+return this.EmitEventGeneric(rHealth)
+}
+*/
+
+fn get_message_type<T>(_: &T) -> &str {
+    let full_name = std::any::type_name::<T>();
+    &full_name[full_name.rfind(':').unwrap() + 1..]
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::aux_proxy_message_sender::{get_message_type, MESSAGE_TYPE_PREFIX};
+
+    pub mod sdk {
+        include!(concat!(
+            env!("OUT_DIR"),
+            "/com.amazon.whitewater.auxproxy.pbuffer.rs"
+        ));
+    }
+
+    #[test]
+    fn it_works() {
+        let mut process_ready = sdk::ProcessReady::default();
+
+        assert_eq!(
+            format!(
+                "{}.{}",
+                MESSAGE_TYPE_PREFIX,
+                get_message_type(&process_ready)
+            ),
+            "com.amazon.whitewater.auxproxy.pbuffer.ProcessReady"
+        );
+    }
+}

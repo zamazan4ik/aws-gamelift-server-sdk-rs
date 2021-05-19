@@ -6,8 +6,11 @@ edition = "2018"
 
 [dependencies]
 futures-util = { version = "0.3.15", features = ["sink"] }
+log = "0.4.14"
 prost = "0.7.0"
 rust_socketio = "0.2.2"
+serde = "1.0.126"
+serde_json = "1.0.64"
 strum = "0.20.0"
 strum_macros = "0.20.1"
 thiserror = "1.0.24"
