@@ -36,11 +36,22 @@ impl Default for GameSession {
 }
 
 pub struct UpdateGameSession {
-    pub game_session: GameSession,
+    pub game_session: Option<GameSession>,
     pub update_reason: UpdateReason,
     pub backfill_ticket_id: String,
 }
 
+impl Default for UpdateGameSession {
+    fn default() -> Self {
+        Self {
+            game_session: Default::default(),
+            update_reason: UpdateReason::UNKNOWN,
+            backfill_ticket_id: "".to_string(),
+        }
+    }
+}
+
+#[derive(strum_macros::EnumString)]
 pub enum UpdateReason {
     MATCHMAKING_DATA_UPDATED,
     BACKFILL_FAILED,

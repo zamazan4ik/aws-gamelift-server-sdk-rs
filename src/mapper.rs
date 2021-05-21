@@ -23,3 +23,19 @@ pub fn game_session_mapper(
 
     converted_game_session
 }
+
+pub fn update_game_session_mapper(
+    source: crate::sdk::UpdateGameSession,
+) -> crate::entity::UpdateGameSession {
+    let mut converted_update_game_session = crate::entity::UpdateGameSession::default();
+
+    converted_update_game_session.game_session =
+        Some(game_session_mapper(source.game_session.unwrap()));
+
+    use std::str::FromStr;
+    converted_update_game_session.update_reason =
+        crate::entity::UpdateReason::from_str(&source.update_reason).unwrap();
+    converted_update_game_session.backfill_ticket_id = source.backfill_ticket_id;
+
+    converted_update_game_session
+}

@@ -1,6 +1,3 @@
-use futures_util::SinkExt;
-use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
-
 const MESSAGE_TYPE_PREFIX: &'static str = "com.amazon.whitewater.auxproxy.pbuffer";
 
 pub struct AuxProxyMessageSender {
@@ -41,14 +38,6 @@ impl AuxProxyMessageSender {
     }
 }
 
-/*public ReportHealth(healthStatus: boolean): Promise<GenericOutcome> {
-const rHealth = new sdk.com.amazon.whitewater.auxproxy.pbuffer.ReportHealth()
-rHealth.healthStatus = healthStatus
-
-return this.EmitEventGeneric(rHealth)
-}
-*/
-
 fn get_message_type<T>(_: &T) -> &str {
     let full_name = std::any::type_name::<T>();
     &full_name[full_name.rfind(':').unwrap() + 1..]
@@ -67,7 +56,7 @@ mod tests {
 
     #[test]
     fn it_works() {
-        let mut process_ready = sdk::ProcessReady::default();
+        let process_ready = sdk::ProcessReady::default();
 
         assert_eq!(
             format!(
