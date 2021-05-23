@@ -72,10 +72,15 @@ impl Api {
     ) {
     }
 
-    pub fn stop_match_backfill_request(
-        &mut self,
-        request: crate::entity::StopMatchBackfillRequest,
-    ) {
+    pub fn start_match_backfill(&mut self, request: crate::entity::StartMatchBackfillRequest) {
+        self.state.backfill_matchmaking(request);
+    }
+
+    /*public static StartMatchBackfill(request: StartMatchBackfillRequest): Promise<StartMatchBackfillOutcome> {
+    return ServerState.Instance.BackfillMatchmaking(request)
+    }*/
+
+    pub fn stop_match_backfill(&mut self, request: crate::entity::StopMatchBackfillRequest) {
         self.state.stop_matchmaking(request);
     }
 }

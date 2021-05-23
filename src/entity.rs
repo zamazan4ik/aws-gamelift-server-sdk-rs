@@ -67,6 +67,13 @@ pub enum UpdateReason {
     UNKNOWN,
 }
 
+pub struct Player {
+    pub player_id: Option<PlayerId>,
+    pub player_attributes: Option<std::collections::HashMap<String, AttributeValue>>,
+    pub team: Option<String>,
+    pub latency_in_ms: Option<std::collections::HashMap<String, i32>>,
+}
+
 #[derive(strum_macros::ToString)]
 pub enum PlayerSessionCreationPolicy {
     NotSet,
@@ -105,8 +112,61 @@ pub enum PlayerSessionStatus {
     TIMEDOUT,
 }
 
+pub struct StartMatchBackfillRequest {
+    pub ticket_id: Option<TicketId>,
+    pub game_session_arn: Option<GameSessionArn>,
+    pub matchmaking_configuration_arn: Option<MatchmakingConfigurationArn>,
+    pub players: Option<Vec<Player>>,
+}
+
 pub struct StopMatchBackfillRequest {
     pub ticket_id: Option<TicketId>,
     pub game_session_arn: Option<GameSessionArn>,
     pub matchmaking_configuration_arn: Option<MatchmakingConfigurationArn>,
 }
+
+pub struct AttributeValue {
+    pub attr_type: AttrType,
+    pub s: Option<String>,
+    pub n: Option<i32>,
+    pub sl: Option<Vec<String>>,
+    pub sdm: Option<std::collections::HashMap<String, i32>>,
+}
+
+pub enum AttrType {
+    STRING = 1,
+    DOUBLE,
+    STRING_LIST,
+    STRING_DOUBLE_MAP,
+}
+
+/*export class AttributeValue {
+public attrType: AttributeValue.AttrType
+public S?: string
+public N?: number
+public SL?: string[]
+public SDM?: { [key: string]: number }
+
+constructor(s: string)
+constructor(n: number)
+constructor(sl: string[])
+constructor(sdm: { [key: string]: number })
+constructor(arg: string | number | string[] | { [key: string]: number }) {
+if (typeof arg === 'string') {
+this.attrType = AttributeValue.AttrType.STRING
+this.S = arg
+} else if (typeof arg === 'number') {
+this.attrType = AttributeValue.AttrType.DOUBLE
+this.N = arg
+} else if (arg instanceof Array) {
+this.attrType = AttributeValue.AttrType.STRING_LIST
+this.SL = arg
+} else if (arg instanceof Object) {
+this.attrType = AttributeValue.AttrType.STRING_DOUBLE_MAP
+this.SDM = arg
+} else {
+throw new Error('Invalid argument')
+}
+}
+}
+}*/

@@ -71,6 +71,27 @@ impl AuxProxyMessageSender {
         self.send(message);
     }
 
+    pub fn backfill_matchmaking(&mut self, request: crate::entity::StartMatchBackfillRequest) {
+        self.send(crate::mapper::start_match_backfill_request_mapper(request));
+    }
+
+    /*public BackfillMatchmaking(
+    request: StartMatchBackfillRequest
+    ): Promise<StartMatchBackfillOutcome> {
+    const translation = BackfillDataMapper.CreateBufferedBackfillMatchmakingRequest(request)
+
+    const deferred = pDefer<StartMatchBackfillOutcome>()
+
+    const ackFunction = this.CreateAckFunctionForStartMatchBackfill(deferred)
+
+    return this.EmitEvent(
+    translation,
+    ackFunction,
+    deferred,
+    AuxProxyMessageSender.START_MATCH_BACKFILL_ERROR
+    )
+    }*/
+
     pub fn stop_matchmaking(&mut self, request: crate::entity::StopMatchBackfillRequest) {
         self.send(crate::mapper::stop_matchmaking_request_mapper(request));
     }

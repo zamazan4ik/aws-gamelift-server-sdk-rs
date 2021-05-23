@@ -51,14 +51,57 @@ pub fn stop_matchmaking_request_mapper(
     result
 }
 
-/*public static CreateBufferedStopMatchmakingRequest(
-request: StopMatchBackfillRequest
-): sdk.com.amazon.whitewater.auxproxy.pbuffer.StopMatchmakingRequest {
-const translated: sdk.com.amazon.whitewater.auxproxy.pbuffer.StopMatchmakingRequest = new sdk.com.amazon.whitewater.auxproxy.pbuffer.StopMatchmakingRequest()
+/*public static CreateBufferedPlayer(
+player: Player
+): sdk.com.amazon.whitewater.auxproxy.pbuffer.Player {
+const translation = new sdk.com.amazon.whitewater.auxproxy.pbuffer.Player()
+
+translation.playerId = player.PlayerId!
+translation.team = player.Team!
+
+if (player.LatencyInMS) {
+Object.entries(player.LatencyInMS).forEach(entry => {
+translation.latencyInMs[entry['0']] = entry['1']
+})
+}
+
+if (player.PlayerAttributes) {
+Object.entries(player.PlayerAttributes).forEach(entry => {
+translation.playerAttributes[entry['0']] = BackfillDataMapper.CreateBufferedAttributeValue(
+entry['1']
+)
+})
+}
+
+return translation
+}*/
+
+pub fn start_match_backfill_request_mapper(
+    source: crate::entity::StartMatchBackfillRequest,
+) -> crate::sdk::BackfillMatchmakingRequest {
+    let mut result = crate::sdk::BackfillMatchmakingRequest::default();
+    result.ticket_id = source.ticket_id.unwrap();
+    result.game_session_arn = source.game_session_arn.unwrap();
+    result.matchmaking_configuration_arn = source.matchmaking_configuration_arn.unwrap();
+
+    /*if let Some(players) = source.players {
+        result.players.push()
+    }*/
+
+    result
+}
+
+/*public static CreateBufferedBackfillMatchmakingRequest(
+request: StartMatchBackfillRequest
+): sdk.com.amazon.whitewater.auxproxy.pbuffer.BackfillMatchmakingRequest {
+const translated: sdk.com.amazon.whitewater.auxproxy.pbuffer.BackfillMatchmakingRequest = new sdk.com.amazon.whitewater.auxproxy.pbuffer.BackfillMatchmakingRequest()
 
 translated.ticketId = request.TicketId!
 translated.gameSessionArn = request.GameSessionArn!
 translated.matchmakingConfigurationArn = request.MatchmakingConfigurationArn!
+for (let i: number = 0; i < request.Players!.length; i++) {
+translated.players.push(BackfillDataMapper.CreateBufferedPlayer(request.Players![i]))
+}
 
 return translated
 }*/

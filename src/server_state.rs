@@ -387,6 +387,25 @@ impl ServerState {
         Ok(())
     }
 
+    pub fn backfill_matchmaking(
+        &mut self,
+        request: crate::entity::StartMatchBackfillRequest,
+    ) -> Result<(), GameLiftErrorType> {
+        if !self.inner.lock().unwrap().is_network_initialized {
+            return Err(crate::error::GameLiftErrorType::NetworkNotInitialized);
+        } else {
+            self.inner
+                .lock()
+                .unwrap()
+                .sender
+                .as_mut()
+                .unwrap()
+                .backfill_matchmaking(request);
+
+            Ok(())
+        }
+    }
+
     pub fn stop_matchmaking(
         &mut self,
         request: crate::entity::StopMatchBackfillRequest,
