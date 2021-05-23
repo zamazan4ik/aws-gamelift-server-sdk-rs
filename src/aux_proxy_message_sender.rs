@@ -17,6 +17,64 @@ impl AuxProxyMessageSender {
         self.send(message);
     }
 
+    pub fn process_ending(&mut self) {
+        self.send(crate::sdk::ProcessEnding::default());
+    }
+
+    pub fn activate_game_session(&mut self, game_session_id: crate::entity::GameSessionId) {
+        let mut message = crate::sdk::GameSessionActivate::default();
+        message.game_session_id = game_session_id;
+
+        self.send(message);
+    }
+
+    pub fn terminate_game_session(&mut self, game_session_id: crate::entity::GameSessionId) {
+        let mut message = crate::sdk::GameSessionTerminate::default();
+        message.game_session_id = game_session_id;
+
+        self.send(message);
+    }
+
+    pub fn update_player_session_creation_policy(
+        &mut self,
+        game_session_id: crate::entity::GameSessionId,
+        player_session_policy: crate::entity::PlayerSessionCreationPolicy,
+    ) {
+        let mut message = crate::sdk::UpdatePlayerSessionCreationPolicy::default();
+        message.game_session_id = game_session_id;
+        message.new_player_session_creation_policy = player_session_policy.to_string();
+
+        self.send(message);
+    }
+
+    pub fn accept_player_session(
+        &mut self,
+        player_session_id: crate::entity::PlayerSessionId,
+        game_session_id: crate::entity::GameSessionId,
+    ) {
+        let mut message = crate::sdk::AcceptPlayerSession::default();
+        message.player_session_id = player_session_id;
+        message.game_session_id = game_session_id;
+
+        self.send(message);
+    }
+
+    pub fn remove_player_session(
+        &mut self,
+        player_session_id: crate::entity::PlayerSessionId,
+        game_session_id: crate::entity::GameSessionId,
+    ) {
+        let mut message = crate::sdk::RemovePlayerSession::default();
+        message.player_session_id = player_session_id;
+        message.game_session_id = game_session_id;
+
+        self.send(message);
+    }
+
+    pub fn stop_matchmaking(&mut self, request: crate::entity::StopMatchBackfillRequest) {
+        self.send(crate::mapper::stop_matchmaking_request_mapper(request));
+    }
+
     pub fn report_health(&mut self, health_status: bool) {
         let mut message = crate::sdk::ReportHealth::default();
         message.health_status = health_status;

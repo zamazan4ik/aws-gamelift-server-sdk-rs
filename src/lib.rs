@@ -1,3 +1,4 @@
+pub mod api;
 pub mod aux_proxy_message_sender;
 pub mod entity;
 pub mod error;

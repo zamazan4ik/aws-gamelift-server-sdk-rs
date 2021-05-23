@@ -39,3 +39,26 @@ pub fn update_game_session_mapper(
 
     converted_update_game_session
 }
+
+pub fn stop_matchmaking_request_mapper(
+    source: crate::entity::StopMatchBackfillRequest,
+) -> crate::sdk::StopMatchmakingRequest {
+    let mut result = crate::sdk::StopMatchmakingRequest::default();
+    result.ticket_id = source.ticket_id.unwrap();
+    result.game_session_arn = source.game_session_arn.unwrap();
+    result.matchmaking_configuration_arn = source.matchmaking_configuration_arn.unwrap();
+
+    result
+}
+
+/*public static CreateBufferedStopMatchmakingRequest(
+request: StopMatchBackfillRequest
+): sdk.com.amazon.whitewater.auxproxy.pbuffer.StopMatchmakingRequest {
+const translated: sdk.com.amazon.whitewater.auxproxy.pbuffer.StopMatchmakingRequest = new sdk.com.amazon.whitewater.auxproxy.pbuffer.StopMatchmakingRequest()
+
+translated.ticketId = request.TicketId!
+translated.gameSessionArn = request.GameSessionArn!
+translated.matchmakingConfigurationArn = request.MatchmakingConfigurationArn!
+
+return translated
+}*/

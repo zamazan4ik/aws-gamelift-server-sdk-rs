@@ -4,6 +4,13 @@ pub struct GameProperty {
 }
 
 pub type GameSessionId = String;
+pub type PlayerId = String;
+pub type PlayerSessionId = String;
+pub type TerminationTimeType = i64;
+pub type FleetId = String;
+pub type TicketId = String;
+pub type GameSessionArn = String;
+pub type MatchmakingConfigurationArn = String;
 
 pub struct GameSession {
     pub game_session_id: Option<GameSessionId>,
@@ -58,4 +65,48 @@ pub enum UpdateReason {
     BACKFILL_TIMED_OUT,
     BACKFILL_CANCELLED,
     UNKNOWN,
+}
+
+#[derive(strum_macros::ToString)]
+pub enum PlayerSessionCreationPolicy {
+    NotSet,
+    AcceptAll,
+    DenyAll,
+}
+
+pub struct DescribePlayerSessionsRequest {
+    pub game_session_id: Option<GameSessionId>,
+    pub player_id: Option<PlayerId>,
+    pub player_session_id: Option<PlayerSessionId>,
+    pub player_session_status_filter: Option<String>,
+    pub next_token: Option<String>,
+    pub limit: i32,
+}
+
+pub struct PlayerSession {
+    pub player_id: Option<PlayerId>,
+    pub player_session_id: Option<PlayerSessionId>,
+    pub game_session_id: Option<GameSessionId>,
+    pub fleet_id: Option<FleetId>,
+    pub ip_address: Option<String>,
+    pub player_data: Option<String>,
+    pub port: i32,
+    pub creation_time: i64,
+    pub termination_time: i64,
+    pub status: PlayerSessionStatus,
+    pub dns_name: Option<String>,
+}
+
+pub enum PlayerSessionStatus {
+    NotSet,
+    RESERVED,
+    ACTIVE,
+    COMPLETED,
+    TIMEDOUT,
+}
+
+pub struct StopMatchBackfillRequest {
+    pub ticket_id: Option<TicketId>,
+    pub game_session_arn: Option<GameSessionArn>,
+    pub matchmaking_configuration_arn: Option<MatchmakingConfigurationArn>,
 }
