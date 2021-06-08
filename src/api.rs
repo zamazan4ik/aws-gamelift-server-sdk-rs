@@ -1,4 +1,4 @@
-const sdk_version: &'static str = "4.0.2";
+pub const SDK_VERSION: &'static str = "4.0.2";
 
 struct Api {
     state: crate::server_state::ServerState,
@@ -12,7 +12,7 @@ impl Api {
     }
 
     pub fn get_sdk_version() -> &'static str {
-        sdk_version
+        SDK_VERSION
     }
 
     pub fn init_sdk(&mut self) {
@@ -70,37 +70,15 @@ impl Api {
         &mut self,
         describe_player_sessions_request: crate::entity::DescribePlayerSessionsRequest,
     ) {
+        self.state
+            .describe_player_sessions(describe_player_sessions_request);
     }
 
     pub fn start_match_backfill(&mut self, request: crate::entity::StartMatchBackfillRequest) {
         self.state.backfill_matchmaking(request);
     }
 
-    /*public static StartMatchBackfill(request: StartMatchBackfillRequest): Promise<StartMatchBackfillOutcome> {
-    return ServerState.Instance.BackfillMatchmaking(request)
-    }*/
-
     pub fn stop_match_backfill(&mut self, request: crate::entity::StopMatchBackfillRequest) {
         self.state.stop_matchmaking(request);
     }
 }
-
-/*
-public static DescribePlayerSessions(
-describePlayerSessionsRequest: DescribePlayerSessionsRequest
-): Promise<DescribePlayerSessionsOutcome> {
-return ServerState.Instance.DescribePlayerSessions(describePlayerSessionsRequest)
-}
-
-public static StartMatchBackfill(request: StartMatchBackfillRequest): Promise<StartMatchBackfillOutcome> {
-return ServerState.Instance.BackfillMatchmaking(request)
-}
-
-public static StopMatchBackfill(request: StopMatchBackfillRequest): Promise<GenericOutcome> {
-return ServerState.Instance.StopMatchmaking(request)
-}
-
-public static Destroy(): GenericOutcome {
-ServerState.Instance.Shutdown()
-return new GenericOutcome()
-}*/

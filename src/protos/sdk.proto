@@ -1,5 +1,7 @@
 syntax = "proto3";
 
+import "google/protobuf/any.proto";
+
 package com.amazon.whitewater.auxproxy.pbuffer;
 
 //SDK --> AuxProxy
@@ -67,6 +69,11 @@ message GetInstanceCertificate {
 }
 
 //AuxProxy --> Sdk
+//This helps with routing the messages to the proper handlers in the SDKs.
+message AuxProxyToSdkEnvelope {
+  google.protobuf.Any inner_message = 1;
+}
+
 message ActivateGameSession {
   GameSession gameSession = 1;
 }

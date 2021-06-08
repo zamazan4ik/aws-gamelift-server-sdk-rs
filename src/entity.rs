@@ -11,6 +11,7 @@ pub type FleetId = String;
 pub type TicketId = String;
 pub type GameSessionArn = String;
 pub type MatchmakingConfigurationArn = String;
+pub type NextToken = String;
 
 pub struct GameSession {
     pub game_session_id: Option<GameSessionId>,
@@ -86,8 +87,22 @@ pub struct DescribePlayerSessionsRequest {
     pub player_id: Option<PlayerId>,
     pub player_session_id: Option<PlayerSessionId>,
     pub player_session_status_filter: Option<String>,
-    pub next_token: Option<String>,
+    pub next_token: Option<NextToken>,
     pub limit: i32,
+}
+
+pub struct DescribePlayerSessionsResult {
+    pub player_sessions: Vec<PlayerSession>,
+    pub next_token: NextToken,
+}
+
+impl Default for DescribePlayerSessionsResult {
+    fn default() -> Self {
+        Self {
+            player_sessions: vec![],
+            next_token: "".to_string(),
+        }
+    }
 }
 
 pub struct PlayerSession {
@@ -104,6 +119,7 @@ pub struct PlayerSession {
     pub dns_name: Option<String>,
 }
 
+#[derive(strum_macros::EnumString)]
 pub enum PlayerSessionStatus {
     NotSet,
     RESERVED,
@@ -119,6 +135,10 @@ pub struct StartMatchBackfillRequest {
     pub players: Option<Vec<Player>>,
 }
 
+pub struct StartMatchBackfillResult {
+    pub ticket_id: TicketId,
+}
+
 pub struct StopMatchBackfillRequest {
     pub ticket_id: Option<TicketId>,
     pub game_session_arn: Option<GameSessionArn>,
@@ -128,11 +148,12 @@ pub struct StopMatchBackfillRequest {
 pub struct AttributeValue {
     pub attr_type: AttrType,
     pub s: Option<String>,
-    pub n: Option<i32>,
+    pub n: Option<f64>,
     pub sl: Option<Vec<String>>,
-    pub sdm: Option<std::collections::HashMap<String, i32>>,
+    pub sdm: Option<std::collections::HashMap<String, f64>>,
 }
 
+#[derive(Clone, Copy)]
 pub enum AttrType {
     STRING = 1,
     DOUBLE,
@@ -140,33 +161,10 @@ pub enum AttrType {
     STRING_DOUBLE_MAP,
 }
 
-/*export class AttributeValue {
-public attrType: AttributeValue.AttrType
-public S?: string
-public N?: number
-public SL?: string[]
-public SDM?: { [key: string]: number }
-
-constructor(s: string)
-constructor(n: number)
-constructor(sl: string[])
-constructor(sdm: { [key: string]: number })
-constructor(arg: string | number | string[] | { [key: string]: number }) {
-if (typeof arg === 'string') {
-this.attrType = AttributeValue.AttrType.STRING
-this.S = arg
-} else if (typeof arg === 'number') {
-this.attrType = AttributeValue.AttrType.DOUBLE
-this.N = arg
-} else if (arg instanceof Array) {
-this.attrType = AttributeValue.AttrType.STRING_LIST
-this.SL = arg
-} else if (arg instanceof Object) {
-this.attrType = AttributeValue.AttrType.STRING_DOUBLE_MAP
-this.SDM = arg
-} else {
-throw new Error('Invalid argument')
+pub struct GetInstanceCertificateResult {
+    pub certificate_path: String,
+    pub private_key_path: String,
+    pub certificate_chain_path: String,
+    pub hostname: String,
+    pub root_certificate_path: String,
 }
-}
-}
-}*/

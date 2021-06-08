@@ -1,5 +1,4 @@
 use crate::error::GameLiftErrorType;
-use rust_socketio::{Payload, SocketBuilder};
 
 const HOSTNAME: &'static str = "127.0.0.1";
 const PORT: i32 = 5757;
@@ -12,12 +11,11 @@ const HEALTHCHECK_TIMEOUT_SECONDS: i32 = 60;
 pub struct ServerStateInner {
     is_network_initialized: bool,
     is_connected: bool,
-    sender: Option<crate::aux_proxy_message_sender::AuxProxyMessageSender>,
-    network: Option<crate::network::Network>,
     process_parameters: Option<crate::process_parameters::ProcessParameters>,
     is_process_ready: bool,
     game_session_id: Option<crate::entity::GameSessionId>,
     termination_time: i64,
+    http_client: crate::http_client::HttpClient,
 }
 
 impl ServerStateInner {
@@ -25,12 +23,11 @@ impl ServerStateInner {
         Self {
             is_network_initialized: false,
             is_connected: false,
-            sender: None,
-            network: None,
             process_parameters: None,
             is_process_ready: false,
             game_session_id: None,
             termination_time: 0,
+            http_client: crate::http_client::HttpClient::new(),
         }
     }
 
@@ -44,15 +41,16 @@ impl ServerStateInner {
             return;
         }
 
-        let game_session =
-            <crate::sdk::GameSession as prost::Message>::decode(raw_game_session.as_bytes())
-                .unwrap(); //TODO: Remove unwrap
+        /*let game_session = <crate::protos::generated_with_pure::sdk::GameSession>::decode(
+            raw_game_session.as_bytes(),
+        )
+        .unwrap(); //TODO: Remove unwrap
         self.game_session_id = Some(game_session.game_session_id.clone());
         (self
             .process_parameters
             .as_ref()
             .unwrap()
-            .on_start_game_session)(crate::mapper::game_session_mapper(game_session));
+            .on_start_game_session)(crate::mapper::game_session_mapper(game_session));*/
     }
 
     fn on_terminate_process(&mut self, raw_termination_time: String) {
@@ -77,17 +75,18 @@ impl ServerStateInner {
             log::warn!("Got an updated game session on inactive process.");
             return;
         }
-        let update_game_session = <crate::sdk::UpdateGameSession as prost::Message>::decode(
-            raw_update_game_session.as_bytes(),
-        )
-        .unwrap(); //TODO: Remove unwrap
+        /*let update_game_session =
+            <crate::protos::generated_with_pure::sdk::UpdateGameSession as prost::Message>::decode(
+                raw_update_game_session.as_bytes(),
+            )
+            .unwrap(); //TODO: Remove unwrap
         (self
             .process_parameters
             .as_ref()
             .unwrap()
             .on_update_game_session)(crate::mapper::update_game_session_mapper(
             update_game_session,
-        ));
+        ));*/
     }
 }
 
@@ -103,94 +102,7 @@ impl ServerState {
     }
 
     pub async fn initialize_networking(&mut self) -> Result<(), crate::error::GameLiftErrorType> {
-        if !self.inner.lock().unwrap().is_network_initialized {
-            let is_connected_server_state = self.inner.clone();
-            let on_start_server_state = self.inner.clone();
-            let on_terminate_server_state = self.inner.clone();
-            let on_update_server_state = self.inner.clone();
-
-            let mut socket_to_aux_proxy = SocketBuilder::new(Self::create_uri())
-                .on("connect", move |_, _| {
-                    log::debug!("Socket.io event triggered: connect");
-                    is_connected_server_state.lock().unwrap().is_connected = true;
-                })
-                .on("connect_error", move |error, _| {
-                    log::debug!(
-                        "Socket.io event triggered: connect_error, with error: {:?}",
-                        error
-                    );
-                })
-                .on("error", move |error, _| {
-                    log::debug!("Socket.io event triggered: error, with error: {:?}", error);
-                })
-                .on("disconnect", move |_, _| {
-                    log::debug!("Socket.io event triggered: disconnect");
-                })
-                .on("connect_timeout", move |_, _| {
-                    log::debug!("Socket.io event triggered: connect_timeout");
-                })
-                .on("message", move |error, _| {
-                    log::debug!(
-                        "Socket.io event triggered: message, with error: {:?}",
-                        error
-                    );
-                })
-                .on("StartGameSession", move |payload, _| match payload {
-                    Payload::Binary(binary_payload) => {
-                        log::warn!("Got StartGameSession binary payload: {:?}", binary_payload);
-                    }
-                    Payload::String(string_payload) => {
-                        log::debug!("Got StartGameSession string payload: {:?}", string_payload);
-                        on_start_server_state
-                            .lock()
-                            .unwrap()
-                            .on_start_game_session(string_payload);
-                    }
-                })
-                .on("TerminateProcess", move |payload, _| match payload {
-                    Payload::Binary(binary_payload) => {
-                        log::warn!("Got TerminateProcess binary payload: {:?}", binary_payload);
-                    }
-                    Payload::String(string_payload) => {
-                        log::debug!("Got TerminateProcess string payload: {:?}", string_payload);
-                        on_terminate_server_state
-                            .lock()
-                            .unwrap()
-                            .on_terminate_process(string_payload);
-                    }
-                })
-                .on("UpdateGameSession", move |payload, _| match payload {
-                    Payload::Binary(binary_payload) => {
-                        log::warn!("Got UpdateGameSession binary payload: {:?}", binary_payload);
-                    }
-                    Payload::String(string_payload) => {
-                        log::debug!("Got UpdateGameSession string payload: {:?}", string_payload);
-                        on_update_server_state
-                            .lock()
-                            .unwrap()
-                            .on_update_game_session(string_payload);
-                    }
-                })
-                .connect()
-                .expect("Connection to Aux proxy failed");
-
-            let socket_from_aux_proxy = SocketBuilder::new(Self::create_uri())
-                .connect()
-                .expect("Connection from Aux proxy failed");
-
-            self.inner.lock().unwrap().sender =
-                Some(crate::aux_proxy_message_sender::AuxProxyMessageSender::new(
-                    socket_to_aux_proxy.clone(),
-                ));
-            self.inner.lock().unwrap().network = Some(crate::network::Network::new(
-                socket_to_aux_proxy,
-                socket_from_aux_proxy,
-            ));
-
-            //TODO: self.network.connect();
-
-            self.inner.lock().unwrap().is_network_initialized = true;
-        }
+        if !self.inner.lock().unwrap().is_network_initialized {}
 
         Ok(())
     }
@@ -210,31 +122,6 @@ impl ServerState {
             return Err(crate::error::GameLiftErrorType::NetworkNotInitialized);
         }
 
-        self.inner
-            .lock()
-            .unwrap()
-            .sender
-            .as_mut()
-            .unwrap()
-            .process_ready(
-                self.inner
-                    .lock()
-                    .unwrap()
-                    .process_parameters
-                    .as_ref()
-                    .unwrap()
-                    .port,
-                self.inner
-                    .lock()
-                    .unwrap()
-                    .process_parameters
-                    .as_ref()
-                    .unwrap()
-                    .log_parameters
-                    .log_paths
-                    .clone(),
-            );
-
         self.start_health_check();
 
         Ok(())
@@ -244,13 +131,6 @@ impl ServerState {
         if !self.inner.lock().unwrap().is_network_initialized {
             return Err(crate::error::GameLiftErrorType::NetworkNotInitialized);
         }
-        self.inner
-            .lock()
-            .unwrap()
-            .sender
-            .as_mut()
-            .unwrap()
-            .process_ending();
         Ok(())
     }
 
@@ -263,14 +143,6 @@ impl ServerState {
             return Err(crate::error::GameLiftErrorType::GameSessionIdNotSet);
         }
 
-        self.inner
-            .lock()
-            .unwrap()
-            .sender
-            .as_mut()
-            .unwrap()
-            .activate_game_session(self.inner.lock().unwrap().game_session_id.clone().unwrap());
-
         Ok(())
     }
 
@@ -282,14 +154,6 @@ impl ServerState {
         if self.inner.lock().unwrap().game_session_id.is_none() {
             return Err(crate::error::GameLiftErrorType::GameSessionIdNotSet);
         }
-
-        self.inner
-            .lock()
-            .unwrap()
-            .sender
-            .as_mut()
-            .unwrap()
-            .terminate_game_session(self.inner.lock().unwrap().game_session_id.clone().unwrap());
 
         Ok(())
     }
@@ -305,17 +169,6 @@ impl ServerState {
         if self.inner.lock().unwrap().game_session_id.is_none() {
             return Err(crate::error::GameLiftErrorType::GameSessionIdNotSet);
         }
-
-        self.inner
-            .lock()
-            .unwrap()
-            .sender
-            .as_mut()
-            .unwrap()
-            .update_player_session_creation_policy(
-                self.inner.lock().unwrap().game_session_id.clone().unwrap(),
-                player_session_policy,
-            );
 
         Ok(())
     }
@@ -347,17 +200,6 @@ impl ServerState {
             return Err(crate::error::GameLiftErrorType::GameSessionIdNotSet);
         }
 
-        self.inner
-            .lock()
-            .unwrap()
-            .sender
-            .as_mut()
-            .unwrap()
-            .accept_player_session(
-                player_session_id,
-                self.inner.lock().unwrap().game_session_id.clone().unwrap(),
-            );
-
         Ok(())
     }
 
@@ -373,17 +215,6 @@ impl ServerState {
             return Err(crate::error::GameLiftErrorType::GameSessionIdNotSet);
         }
 
-        self.inner
-            .lock()
-            .unwrap()
-            .sender
-            .as_mut()
-            .unwrap()
-            .remove_player_session(
-                player_session_id,
-                self.inner.lock().unwrap().game_session_id.clone().unwrap(),
-            );
-
         Ok(())
     }
 
@@ -394,14 +225,6 @@ impl ServerState {
         if !self.inner.lock().unwrap().is_network_initialized {
             return Err(crate::error::GameLiftErrorType::NetworkNotInitialized);
         } else {
-            self.inner
-                .lock()
-                .unwrap()
-                .sender
-                .as_mut()
-                .unwrap()
-                .backfill_matchmaking(request);
-
             Ok(())
         }
     }
@@ -413,24 +236,44 @@ impl ServerState {
         if !self.inner.lock().unwrap().is_network_initialized {
             return Err(crate::error::GameLiftErrorType::NetworkNotInitialized);
         } else {
-            self.inner
-                .lock()
-                .unwrap()
-                .sender
-                .as_mut()
-                .unwrap()
-                .stop_matchmaking(request);
-
             Ok(())
         }
     }
 
-    /*public async StopMatchmaking(request: StopMatchBackfillRequest): Promise<GenericOutcome> {
-      if (!ServerState.networkInitialized) {
-        return new GenericOutcome(new GameLiftError(GameLiftErrorType.NETWORK_NOT_INITIALIZED))
-      } else {
-        return this.sender!.StopMatchmaking(request)
-      }
+    pub fn describe_player_sessions(
+        &mut self,
+        request: crate::entity::DescribePlayerSessionsRequest,
+    ) -> Result<(), GameLiftErrorType> {
+        if !self.inner.lock().unwrap().is_network_initialized {
+            return Err(crate::error::GameLiftErrorType::NetworkNotInitialized);
+        } else {
+            Ok(())
+        }
+    }
+
+    /*public async DescribePlayerSessions(
+    request: DescribePlayerSessionsRequest
+    ): Promise<DescribePlayerSessionsOutcome> {
+    ServerState.debug(`Describing player sessions for playerSessionId ${request.PlayerSessionId}`)
+    if (!ServerState.networkInitialized) {
+    return new DescribePlayerSessionsOutcome(
+    new GameLiftError(GameLiftErrorType.NETWORK_NOT_INITIALIZED)
+    )
+    } else {
+    return this.sender!.DescribePlayerSessions(request)
+    }
+    }*/
+
+    pub fn shutdown(&mut self) {
+        self.inner.lock().unwrap().is_network_initialized = false;
+        self.inner.lock().unwrap().is_process_ready = false;
+        //self.inner.lock().unwrap().
+    }
+
+    /*public Shutdown(): void {
+    ServerState.networkInitialized = false
+    this.network!.Disconnect()
+    this.processReady = false
     }*/
 
     fn start_health_check(&mut self) {
@@ -449,12 +292,5 @@ impl ServerState {
             .as_ref()
             .unwrap()
             .on_health_check)();
-        self.inner
-            .lock()
-            .unwrap()
-            .sender
-            .as_mut()
-            .unwrap()
-            .report_health(health_check_result);
     }
 }

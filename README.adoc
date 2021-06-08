@@ -4,14 +4,14 @@
 An **unofficial** port of AWS GameLift Server SDK for Rust.
 
 == Compatibility
-This crate is compatible with **3.4.1** AWS GameLift Server SDK.
+This crate is compatible with **4.0.2** AWS GameLift Server SDK.
 We support the latest stable Rust version.
 
 == Contributing
 If you find any bug, missed functionality or just want to share any feedback - feel free to open an issue. Will be wonderful, if you create a PR - it makes my life much easier.
 
-== Protobuf
-AWS GameLift Server SDK uses Protobuf 3 protocol. Unfortunately, AWS doesn't provide officially original Protobuf files. So we use reverse-engineered .proto files from this repository: https://github.com/dplusic/GameLift-Server-Protobuf
+== Protobuf schema
+AWS GameLift Server SDK uses Protobuf 3 protocol. Unfortunately, AWS doesn't provide officially original Protobuf files yet. So we use reverse-engineered `.proto` files from this repository: https://github.com/dplusic/GameLift-Server-Protobuf . Since the original repo can be outdated, I also maintain my own fork (any help with maintaining is appreciated a lot): https://github.com/ZaMaZaN4iK/GameLift-Server-Protobuf
 
 == Notes
 If you are looking for AWS GameLift SDK (without **Server** word) - this crate is not for you. Please use https://github.com/rusoto/rusoto/tree/master/rusoto/services/gamelift[rusoto] or an official https://github.com/awslabs/aws-sdk-rust[AWS Rust SDK] (at the moment of writing this GameLift is not supported in this SDK).

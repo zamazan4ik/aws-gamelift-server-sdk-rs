@@ -6,4 +6,6 @@ pub enum GameLiftErrorType {
     NetworkNotInitialized,
     GameSessionIdNotSet,
     TerminationTimeNotSet,
+    BadRequest,
+    InternalServiceError,
 }
