@@ -8,10 +8,3 @@ pub mod process_parameters;
 pub mod protos;
 pub mod server_state;
 mod web_socket_listener;
-
-/*mod sdk {
-    include!(concat!(
-        env!("OUT_DIR"),
-        "/com.amazon.whitewater.auxproxy.pbuffer.rs"
-    ));
-}*/

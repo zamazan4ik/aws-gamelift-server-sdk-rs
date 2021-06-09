@@ -1,6 +1,6 @@
 pub const SDK_VERSION: &'static str = "4.0.2";
 
-struct Api {
+pub struct Api {
     state: crate::server_state::ServerState,
 }
 

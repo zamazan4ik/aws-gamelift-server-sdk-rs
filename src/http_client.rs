@@ -35,10 +35,6 @@ impl HttpClient {
     where
         T: protobuf::Message,
     {
-        /*let mut buf = bytes::BytesMut::new();
-        buf.resize(message.encoded_len(), 0);
-        message.encode(&mut buf);*/
-
         self.http_client
             .post(self.uri.clone())
             .header(
@@ -212,20 +208,13 @@ fn get_message_type<T>(_: &T) -> &str {
     &full_name[full_name.rfind(':').unwrap() + 1..]
 }
 
-/*#[cfg(test)]
+#[cfg(test)]
 mod tests {
     use crate::http_client::{get_message_type, MESSAGE_TYPE_PREFIX};
 
-    pub mod sdk {
-        include!(concat!(
-            env!("OUT_DIR"),
-            "/com.amazon.whitewater.auxproxy.pbuffer.rs"
-        ));
-    }
-
     #[test]
     fn it_works() {
-        let process_ready = sdk::ProcessReady::default();
+        let process_ready = crate::protos::generated_with_pure::sdk::ProcessReady::default();
 
         assert_eq!(
             format!(
@@ -236,4 +225,4 @@ mod tests {
             "com.amazon.whitewater.auxproxy.pbuffer.ProcessReady"
         );
     }
-}*/
+}
