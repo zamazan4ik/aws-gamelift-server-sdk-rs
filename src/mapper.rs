@@ -51,7 +51,7 @@ pub fn describe_player_session_request_mapper(
 
     use std::str::FromStr;
     for player_session in source.playerSessions {
-        let mut converted_player_session = crate::entity::PlayerSession {
+        let converted_player_session = crate::entity::PlayerSession {
             player_id: Some(player_session.playerId),
             player_session_id: Some(player_session.playerSessionId),
             game_session_id: Some(player_session.gameSessionId),

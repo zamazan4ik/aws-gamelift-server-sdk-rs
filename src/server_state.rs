@@ -1,4 +1,6 @@
+use crate::entity::GetInstanceCertificateResult;
 use crate::error::GameLiftErrorType;
+use tokio::task::JoinHandle;
 
 const HOSTNAME: &'static str = "127.0.0.1";
 const PORT: i32 = 5757;
@@ -6,59 +8,51 @@ const PID_KEY: &'static str = "pID";
 const SDK_VERSION_KEY: &'static str = "sdkVersion";
 const FLAVOR_KEY: &'static str = "sdkLanguage";
 const FLAVOR: &'static str = "Rust";
-const HEALTHCHECK_TIMEOUT_SECONDS: i32 = 60;
+const HEALTHCHECK_TIMEOUT_SECONDS: u64 = 60;
 
 pub struct ServerStateInner {
-    is_network_initialized: bool,
-    is_connected: bool,
     process_parameters: Option<crate::process_parameters::ProcessParameters>,
     is_process_ready: bool,
     game_session_id: Option<crate::entity::GameSessionId>,
-    termination_time: i64,
+    termination_time: Option<crate::entity::TerminationTimeType>,
     http_client: crate::http_client::HttpClient,
 }
 
 impl ServerStateInner {
     pub fn new() -> Self {
         Self {
-            is_network_initialized: false,
-            is_connected: false,
             process_parameters: None,
             is_process_ready: false,
             game_session_id: None,
-            termination_time: 0,
+            termination_time: None,
             http_client: crate::http_client::HttpClient::new(),
         }
     }
 
-    fn on_start_game_session(&mut self, raw_game_session: String) {
-        log::debug!(
-            "ServerState got the startGameSession signal. GameSession: {}",
-            raw_game_session
-        );
+    pub fn on_start_game_session(&mut self, game_session: crate::entity::GameSession) {
+        /*log::debug!(
+            "ServerState got the startGameSession signal. GameSession: {:?}",
+            game_session
+        );*/
         if !self.is_process_ready {
             log::debug!("Got a game session on inactive process. Ignoring.");
             return;
         }
 
-        /*let game_session = <crate::protos::generated_with_pure::sdk::GameSession>::decode(
-            raw_game_session.as_bytes(),
-        )
-        .unwrap(); //TODO: Remove unwrap
-        self.game_session_id = Some(game_session.game_session_id.clone());
+        self.game_session_id = Some(game_session.game_session_id.clone().unwrap());
         (self
             .process_parameters
             .as_ref()
             .unwrap()
-            .on_start_game_session)(crate::mapper::game_session_mapper(game_session));*/
+            .on_start_game_session)(game_session);
     }
 
-    fn on_terminate_process(&mut self, raw_termination_time: String) {
+    pub fn on_terminate_process(&mut self, termination_time: i64) {
         log::debug!(
             "ServerState got the terminateProcess signal. TerminateProcess: {}",
-            raw_termination_time
+            termination_time
         );
-        self.termination_time = raw_termination_time.parse::<i64>().unwrap(); //TODO: Remove unwrap
+        self.termination_time = Some(termination_time);
         (self
             .process_parameters
             .as_ref()
@@ -66,231 +60,268 @@ impl ServerStateInner {
             .on_process_terminate)();
     }
 
-    fn on_update_game_session(&mut self, raw_update_game_session: String) {
-        log::debug!(
+    pub fn on_update_game_session(
+        &mut self,
+        game_session: crate::entity::GameSession,
+        update_reason: crate::entity::UpdateReason,
+        backfill_ticket_id: String,
+    ) {
+        /*log::debug!(
             "ServerState got the updateGameSession signal. UpdateGameSession: {}",
             raw_update_game_session
-        );
+        );*/
         if !self.is_process_ready {
             log::warn!("Got an updated game session on inactive process.");
             return;
         }
-        /*let update_game_session =
-            <crate::protos::generated_with_pure::sdk::UpdateGameSession as prost::Message>::decode(
-                raw_update_game_session.as_bytes(),
-            )
-            .unwrap(); //TODO: Remove unwrap
         (self
             .process_parameters
             .as_ref()
             .unwrap()
-            .on_update_game_session)(crate::mapper::update_game_session_mapper(
-            update_game_session,
-        ));*/
+            .on_update_game_session)(crate::entity::UpdateGameSession {
+            game_session: Some(game_session),
+            update_reason,
+            backfill_ticket_id,
+        });
+    }
+
+    pub async fn report_health(&self) {
+        if !self.is_process_ready {
+            log::debug!("Reporting Health on an inactive process. Ignoring.");
+            return;
+        }
+
+        log::debug!("Reporting health using the OnHealthCheck callback.");
+
+        //let health_check_result = (self.process_parameters.as_ref().unwrap().on_health_check)();
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(HEALTHCHECK_TIMEOUT_SECONDS),
+            async { (self.process_parameters.as_ref().unwrap().on_health_check)() },
+        )
+        .await;
+
+        let report_health_result;
+        if let Ok(health_check_result) = result {
+            report_health_result = self.http_client.report_health(health_check_result).await;
+        } else {
+            report_health_result = self.http_client.report_health(false).await;
+        }
+
+        if let Err(error) = report_health_result {
+            log::warn!("Could not send health starus: {:?}", error);
+        }
     }
 }
 
 pub struct ServerState {
-    inner: std::sync::Arc<std::sync::Mutex<ServerStateInner>>,
+    inner: std::sync::Arc<tokio::sync::Mutex<ServerStateInner>>,
+    websocket_listener: Option<crate::web_socket_listener::WebSocketListener>,
+    health_report_task: Option<JoinHandle<()>>,
 }
 
 impl ServerState {
     pub fn new() -> Self {
         Self {
-            inner: std::sync::Arc::new(std::sync::Mutex::new(ServerStateInner::new())),
+            inner: std::sync::Arc::new(tokio::sync::Mutex::new(ServerStateInner::new())),
+            websocket_listener: None,
+            health_report_task: None,
         }
-    }
-
-    pub async fn initialize_networking(&mut self) -> Result<(), crate::error::GameLiftErrorType> {
-        if !self.inner.lock().unwrap().is_network_initialized {}
-
-        Ok(())
-    }
-
-    fn create_uri() -> String {
-        format!("http://{}:{}", HOSTNAME, PORT)
     }
 
     pub async fn process_ready(
         &mut self,
         process_parameters: crate::process_parameters::ProcessParameters,
     ) -> Result<(), crate::error::GameLiftErrorType> {
-        self.inner.lock().unwrap().is_process_ready = true;
-        self.inner.lock().unwrap().process_parameters = Some(process_parameters);
+        let port = process_parameters.port;
+        let log_paths = process_parameters.log_parameters.log_paths.clone();
 
-        if !self.inner.lock().unwrap().is_network_initialized {
-            return Err(crate::error::GameLiftErrorType::NetworkNotInitialized);
-        }
+        self.inner.lock().await.is_process_ready = true;
+        self.inner.lock().await.process_parameters = Some(process_parameters);
 
-        self.start_health_check();
+        let result = self
+            .inner
+            .lock()
+            .await
+            .http_client
+            .process_ready(port, log_paths)
+            .await;
 
-        Ok(())
+        self.start_health_check().await;
+
+        result
     }
 
-    pub fn process_ending(&mut self) -> Result<(), crate::error::GameLiftErrorType> {
-        if !self.inner.lock().unwrap().is_network_initialized {
-            return Err(crate::error::GameLiftErrorType::NetworkNotInitialized);
-        }
-        Ok(())
+    pub async fn process_ending(&mut self) -> Result<(), crate::error::GameLiftErrorType> {
+        self.inner.lock().await.is_process_ready = false;
+        self.inner.lock().await.http_client.process_ending().await
     }
 
-    pub fn activate_game_session(&mut self) -> Result<(), GameLiftErrorType> {
-        if !self.inner.lock().unwrap().is_network_initialized {
-            return Err(crate::error::GameLiftErrorType::NetworkNotInitialized);
+    pub async fn activate_game_session(&mut self) -> Result<(), GameLiftErrorType> {
+        if let Some(game_session_id) = self.inner.lock().await.game_session_id.clone() {
+            self.inner
+                .lock()
+                .await
+                .http_client
+                .activate_game_session(game_session_id)
+                .await
+        } else {
+            Err(crate::error::GameLiftErrorType::GameSessionIdNotSet)
         }
-
-        if self.inner.lock().unwrap().game_session_id.is_none() {
-            return Err(crate::error::GameLiftErrorType::GameSessionIdNotSet);
-        }
-
-        Ok(())
     }
 
-    pub fn terminate_game_session(&mut self) -> Result<(), GameLiftErrorType> {
-        if !self.inner.lock().unwrap().is_network_initialized {
-            return Err(crate::error::GameLiftErrorType::NetworkNotInitialized);
+    pub async fn terminate_game_session(&mut self) -> Result<(), GameLiftErrorType> {
+        if let Some(game_session_id) = self.inner.lock().await.game_session_id.clone() {
+            self.inner
+                .lock()
+                .await
+                .http_client
+                .terminate_game_session(game_session_id)
+                .await
+        } else {
+            Err(crate::error::GameLiftErrorType::GameSessionIdNotSet)
         }
-
-        if self.inner.lock().unwrap().game_session_id.is_none() {
-            return Err(crate::error::GameLiftErrorType::GameSessionIdNotSet);
-        }
-
-        Ok(())
     }
 
-    pub fn update_player_session_creation_policy(
-        &mut self,
-        player_session_policy: crate::entity::PlayerSessionCreationPolicy,
-    ) -> Result<(), GameLiftErrorType> {
-        if !self.inner.lock().unwrap().is_network_initialized {
-            return Err(crate::error::GameLiftErrorType::NetworkNotInitialized);
-        }
-
-        if self.inner.lock().unwrap().game_session_id.is_none() {
-            return Err(crate::error::GameLiftErrorType::GameSessionIdNotSet);
-        }
-
-        Ok(())
-    }
-
-    pub fn get_game_session_id(
+    pub async fn get_game_session_id(
         &mut self,
     ) -> Result<crate::entity::GameSessionId, crate::error::GameLiftErrorType> {
-        match self.inner.lock().unwrap().game_session_id.as_ref() {
+        match self.inner.lock().await.game_session_id.as_ref() {
             Some(game_session_id) => Ok(game_session_id.clone()),
             None => Err(crate::error::GameLiftErrorType::GameSessionIdNotSet),
         }
     }
 
-    pub fn get_termination_time(
+    pub async fn get_termination_time(
         &mut self,
     ) -> Result<crate::entity::TerminationTimeType, crate::error::GameLiftErrorType> {
-        Ok(self.inner.lock().unwrap().termination_time)
+        match self.inner.lock().await.termination_time {
+            Some(value) => Ok(value),
+            None => Err(crate::error::GameLiftErrorType::TerminationTimeNotSet),
+        }
     }
 
-    pub fn accept_player_session(
+    pub async fn update_player_session_creation_policy(
+        &mut self,
+        player_session_policy: crate::entity::PlayerSessionCreationPolicy,
+    ) -> Result<(), GameLiftErrorType> {
+        if let Some(game_session_id) = self.inner.lock().await.game_session_id.clone() {
+            self.inner
+                .lock()
+                .await
+                .http_client
+                .update_player_session_creation_policy(game_session_id, player_session_policy)
+                .await
+        } else {
+            Err(crate::error::GameLiftErrorType::GameSessionIdNotSet)
+        }
+    }
+
+    pub async fn accept_player_session(
         &mut self,
         player_session_id: crate::entity::PlayerSessionId,
     ) -> Result<(), GameLiftErrorType> {
-        if !self.inner.lock().unwrap().is_network_initialized {
-            return Err(crate::error::GameLiftErrorType::NetworkNotInitialized);
+        if let Some(game_session_id) = self.inner.lock().await.game_session_id.clone() {
+            self.inner
+                .lock()
+                .await
+                .http_client
+                .accept_player_session(player_session_id, game_session_id)
+                .await
+        } else {
+            Err(crate::error::GameLiftErrorType::GameSessionIdNotSet)
         }
-
-        if self.inner.lock().unwrap().game_session_id.is_none() {
-            return Err(crate::error::GameLiftErrorType::GameSessionIdNotSet);
-        }
-
-        Ok(())
     }
 
-    pub fn remove_player_session(
+    pub async fn remove_player_session(
         &mut self,
         player_session_id: crate::entity::PlayerSessionId,
     ) -> Result<(), GameLiftErrorType> {
-        if !self.inner.lock().unwrap().is_network_initialized {
-            return Err(crate::error::GameLiftErrorType::NetworkNotInitialized);
+        if let Some(game_session_id) = self.inner.lock().await.game_session_id.clone() {
+            self.inner
+                .lock()
+                .await
+                .http_client
+                .remove_player_session(player_session_id, game_session_id)
+                .await
+        } else {
+            Err(crate::error::GameLiftErrorType::GameSessionIdNotSet)
         }
-
-        if self.inner.lock().unwrap().game_session_id.is_none() {
-            return Err(crate::error::GameLiftErrorType::GameSessionIdNotSet);
-        }
-
-        Ok(())
     }
 
-    pub fn backfill_matchmaking(
+    pub async fn describe_player_sessions(
+        &mut self,
+        request: crate::entity::DescribePlayerSessionsRequest,
+    ) -> Result<crate::entity::DescribePlayerSessionsResult, GameLiftErrorType> {
+        self.inner
+            .lock()
+            .await
+            .http_client
+            .describe_player_sessions(request)
+            .await
+    }
+
+    pub async fn backfill_matchmaking(
         &mut self,
         request: crate::entity::StartMatchBackfillRequest,
-    ) -> Result<(), GameLiftErrorType> {
-        if !self.inner.lock().unwrap().is_network_initialized {
-            return Err(crate::error::GameLiftErrorType::NetworkNotInitialized);
-        } else {
-            Ok(())
-        }
+    ) -> Result<crate::entity::StartMatchBackfillResult, GameLiftErrorType> {
+        self.inner
+            .lock()
+            .await
+            .http_client
+            .backfill_matchmaking(request)
+            .await
     }
 
-    pub fn stop_matchmaking(
+    pub async fn stop_matchmaking(
         &mut self,
         request: crate::entity::StopMatchBackfillRequest,
     ) -> Result<(), GameLiftErrorType> {
-        if !self.inner.lock().unwrap().is_network_initialized {
-            return Err(crate::error::GameLiftErrorType::NetworkNotInitialized);
-        } else {
-            Ok(())
-        }
-    }
-
-    pub fn describe_player_sessions(
-        &mut self,
-        request: crate::entity::DescribePlayerSessionsRequest,
-    ) -> Result<(), GameLiftErrorType> {
-        if !self.inner.lock().unwrap().is_network_initialized {
-            return Err(crate::error::GameLiftErrorType::NetworkNotInitialized);
-        } else {
-            Ok(())
-        }
-    }
-
-    /*public async DescribePlayerSessions(
-    request: DescribePlayerSessionsRequest
-    ): Promise<DescribePlayerSessionsOutcome> {
-    ServerState.debug(`Describing player sessions for playerSessionId ${request.PlayerSessionId}`)
-    if (!ServerState.networkInitialized) {
-    return new DescribePlayerSessionsOutcome(
-    new GameLiftError(GameLiftErrorType.NETWORK_NOT_INITIALIZED)
-    )
-    } else {
-    return this.sender!.DescribePlayerSessions(request)
-    }
-    }*/
-
-    pub fn shutdown(&mut self) {
-        self.inner.lock().unwrap().is_network_initialized = false;
-        self.inner.lock().unwrap().is_process_ready = false;
-        //self.inner.lock().unwrap().
-    }
-
-    /*public Shutdown(): void {
-    ServerState.networkInitialized = false
-    this.network!.Disconnect()
-    this.processReady = false
-    }*/
-
-    fn start_health_check(&mut self) {
-        while self.inner.lock().unwrap().is_process_ready {
-            self.report_health();
-            // TODO: Async sleep for some time
-        }
-    }
-
-    fn report_health(&mut self) {
-        let health_check_result = (self
-            .inner
+        self.inner
             .lock()
-            .unwrap()
-            .process_parameters
-            .as_ref()
-            .unwrap()
-            .on_health_check)();
+            .await
+            .http_client
+            .stop_matchmaking(request)
+            .await
+    }
+
+    async fn start_health_check(&mut self) {
+        log::debug!("Health check started.");
+
+        let inner_state = self.inner.clone();
+        let report_health_task = async move {
+            while inner_state.lock().await.is_process_ready {
+                {
+                    inner_state.lock().await.report_health().await;
+                }
+
+                tokio::time::sleep(std::time::Duration::from_secs(HEALTHCHECK_TIMEOUT_SECONDS))
+                    .await;
+            }
+        };
+
+        self.health_report_task = Some(tokio::spawn(report_health_task));
+    }
+
+    pub async fn initialize_networking(&mut self) -> Result<(), crate::error::GameLiftErrorType> {
+        self.websocket_listener = Some(crate::web_socket_listener::WebSocketListener::new(
+            self.inner.clone(),
+        ));
+        self.websocket_listener.as_mut().unwrap().connect().await
+    }
+
+    pub async fn get_instance_certificate(
+        &self,
+    ) -> Result<GetInstanceCertificateResult, GameLiftErrorType> {
+        self.inner
+            .lock()
+            .await
+            .http_client
+            .get_instance_certificate()
+            .await
+    }
+
+    pub async fn shutdown(&self) -> bool {
+        self.inner.lock().await.is_process_ready = false;
+        self.websocket_listener.as_ref().unwrap().disconnect()
     }
 }

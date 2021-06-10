@@ -1,7 +1,9 @@
-pub type OnStartGameSessionType = dyn Fn(crate::entity::GameSession) + std::marker::Send;
-pub type OnUpdateGameSessionType = dyn Fn(crate::entity::UpdateGameSession) + std::marker::Send;
-pub type OnProcessTerminateType = dyn Fn() + std::marker::Send;
-pub type OnHealthCheckType = dyn Fn() -> bool + std::marker::Send;
+pub type OnStartGameSessionType =
+    dyn Fn(crate::entity::GameSession) + std::marker::Send + std::marker::Sync;
+pub type OnUpdateGameSessionType =
+    dyn Fn(crate::entity::UpdateGameSession) + std::marker::Send + std::marker::Sync;
+pub type OnProcessTerminateType = dyn Fn() + std::marker::Send + std::marker::Sync;
+pub type OnHealthCheckType = dyn Fn() -> bool + std::marker::Send + std::marker::Sync;
 
 pub struct ProcessParameters {
     pub on_start_game_session: Box<OnStartGameSessionType>,
