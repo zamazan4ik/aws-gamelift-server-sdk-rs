@@ -1,13 +1,6 @@
-use crate::entity::GetInstanceCertificateResult;
-use crate::error::GameLiftErrorType;
+use crate::{entity::GetInstanceCertificateResult, error::GameLiftErrorType};
 use tokio::task::JoinHandle;
 
-const HOSTNAME: &'static str = "127.0.0.1";
-const PORT: i32 = 5757;
-const PID_KEY: &'static str = "pID";
-const SDK_VERSION_KEY: &'static str = "sdkVersion";
-const FLAVOR_KEY: &'static str = "sdkLanguage";
-const FLAVOR: &'static str = "Rust";
 const HEALTHCHECK_TIMEOUT_SECONDS: u64 = 60;
 
 pub struct ServerStateInner {
@@ -40,11 +33,7 @@ impl ServerStateInner {
         }
 
         self.game_session_id = Some(game_session.game_session_id.clone().unwrap());
-        (self
-            .process_parameters
-            .as_ref()
-            .unwrap()
-            .on_start_game_session)(game_session);
+        (self.process_parameters.as_ref().unwrap().on_start_game_session)(game_session);
     }
 
     pub fn on_terminate_process(&mut self, termination_time: i64) {
@@ -53,11 +42,7 @@ impl ServerStateInner {
             termination_time
         );
         self.termination_time = Some(termination_time);
-        (self
-            .process_parameters
-            .as_ref()
-            .unwrap()
-            .on_process_terminate)();
+        (self.process_parameters.as_ref().unwrap().on_process_terminate)();
     }
 
     pub fn on_update_game_session(
@@ -74,15 +59,13 @@ impl ServerStateInner {
             log::warn!("Got an updated game session on inactive process.");
             return;
         }
-        (self
-            .process_parameters
-            .as_ref()
-            .unwrap()
-            .on_update_game_session)(crate::entity::UpdateGameSession {
-            game_session: Some(game_session),
-            update_reason,
-            backfill_ticket_id,
-        });
+        (self.process_parameters.as_ref().unwrap().on_update_game_session)(
+            crate::entity::UpdateGameSession {
+                game_session: Some(game_session),
+                update_reason,
+                backfill_ticket_id,
+            },
+        );
     }
 
     pub async fn report_health(&self) {
@@ -93,7 +76,8 @@ impl ServerStateInner {
 
         log::debug!("Reporting health using the OnHealthCheck callback.");
 
-        //let health_check_result = (self.process_parameters.as_ref().unwrap().on_health_check)();
+        //let health_check_result =
+        // (self.process_parameters.as_ref().unwrap().on_health_check)();
         let result = tokio::time::timeout(
             std::time::Duration::from_secs(HEALTHCHECK_TIMEOUT_SECONDS),
             async { (self.process_parameters.as_ref().unwrap().on_health_check)() },
@@ -138,13 +122,7 @@ impl ServerState {
         self.inner.lock().await.is_process_ready = true;
         self.inner.lock().await.process_parameters = Some(process_parameters);
 
-        let result = self
-            .inner
-            .lock()
-            .await
-            .http_client
-            .process_ready(port, log_paths)
-            .await;
+        let result = self.inner.lock().await.http_client.process_ready(port, log_paths).await;
 
         self.start_health_check().await;
 
@@ -158,12 +136,7 @@ impl ServerState {
 
     pub async fn activate_game_session(&mut self) -> Result<(), GameLiftErrorType> {
         if let Some(game_session_id) = self.inner.lock().await.game_session_id.clone() {
-            self.inner
-                .lock()
-                .await
-                .http_client
-                .activate_game_session(game_session_id)
-                .await
+            self.inner.lock().await.http_client.activate_game_session(game_session_id).await
         } else {
             Err(crate::error::GameLiftErrorType::GameSessionIdNotSet)
         }
@@ -171,12 +144,7 @@ impl ServerState {
 
     pub async fn terminate_game_session(&mut self) -> Result<(), GameLiftErrorType> {
         if let Some(game_session_id) = self.inner.lock().await.game_session_id.clone() {
-            self.inner
-                .lock()
-                .await
-                .http_client
-                .terminate_game_session(game_session_id)
-                .await
+            self.inner.lock().await.http_client.terminate_game_session(game_session_id).await
         } else {
             Err(crate::error::GameLiftErrorType::GameSessionIdNotSet)
         }
@@ -252,36 +220,21 @@ impl ServerState {
         &mut self,
         request: crate::entity::DescribePlayerSessionsRequest,
     ) -> Result<crate::entity::DescribePlayerSessionsResult, GameLiftErrorType> {
-        self.inner
-            .lock()
-            .await
-            .http_client
-            .describe_player_sessions(request)
-            .await
+        self.inner.lock().await.http_client.describe_player_sessions(request).await
     }
 
     pub async fn backfill_matchmaking(
         &mut self,
         request: crate::entity::StartMatchBackfillRequest,
     ) -> Result<crate::entity::StartMatchBackfillResult, GameLiftErrorType> {
-        self.inner
-            .lock()
-            .await
-            .http_client
-            .backfill_matchmaking(request)
-            .await
+        self.inner.lock().await.http_client.backfill_matchmaking(request).await
     }
 
     pub async fn stop_matchmaking(
         &mut self,
         request: crate::entity::StopMatchBackfillRequest,
     ) -> Result<(), GameLiftErrorType> {
-        self.inner
-            .lock()
-            .await
-            .http_client
-            .stop_matchmaking(request)
-            .await
+        self.inner.lock().await.http_client.stop_matchmaking(request).await
     }
 
     async fn start_health_check(&mut self) {
@@ -303,21 +256,15 @@ impl ServerState {
     }
 
     pub async fn initialize_networking(&mut self) -> Result<(), crate::error::GameLiftErrorType> {
-        self.websocket_listener = Some(crate::web_socket_listener::WebSocketListener::new(
-            self.inner.clone(),
-        ));
+        self.websocket_listener =
+            Some(crate::web_socket_listener::WebSocketListener::new(self.inner.clone()));
         self.websocket_listener.as_mut().unwrap().connect().await
     }
 
     pub async fn get_instance_certificate(
         &self,
     ) -> Result<GetInstanceCertificateResult, GameLiftErrorType> {
-        self.inner
-            .lock()
-            .await
-            .http_client
-            .get_instance_certificate()
-            .await
+        self.inner.lock().await.http_client.get_instance_certificate().await
     }
 
     pub async fn shutdown(&self) -> bool {

@@ -1,3 +1,7 @@
+//! An unofficial port of AWS GameLift Server SDK for Rust.
+//!
+//! Official documentation for the SDK (C# version), can be found [here](https://docs.aws.amazon.com/gamelift/latest/developerguide/integration-server-sdk-csharp-ref.html).
+
 pub mod api;
 pub mod entity;
 pub mod error;

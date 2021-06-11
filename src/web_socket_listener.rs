@@ -1,7 +1,7 @@
 use futures_util::StreamExt;
 
 const HOSTNAME: &'static str = "127.0.0.1";
-const PORT: i32 = 5757;
+const PORT: i32 = 5759;
 const PID_KEY: &'static str = "pID";
 const SDK_VERSION_KEY: &'static str = "sdkVersion";
 const FLAVOR_KEY: &'static str = "sdkLanguage";
@@ -16,10 +16,7 @@ impl WebSocketListener {
     pub fn new(
         state: std::sync::Arc<tokio::sync::Mutex<crate::server_state::ServerStateInner>>,
     ) -> Self {
-        Self {
-            handle: None,
-            state,
-        }
+        Self { handle: None, state }
     }
 
     pub fn disconnect(&self) -> bool {
@@ -32,13 +29,16 @@ impl WebSocketListener {
     }
 
     pub async fn connect(&mut self) -> Result<(), crate::error::GameLiftErrorType> {
-        self.perform_connect()
-            .await
-            .map_err(|_| crate::error::GameLiftErrorType::LocalConnectionFailed)
+        self.perform_connect().await.map_err(|error| {
+            println!("{:?}", error);
+            crate::error::GameLiftErrorType::LocalConnectionFailed
+        })
     }
 
     async fn perform_connect(&mut self) -> Result<(), tokio_tungstenite::tungstenite::Error> {
-        let (mut ws_stream, _) = tokio_tungstenite::connect_async(Self::create_uri()).await?;
+        let connection_string = Self::create_uri();
+        log::debug!("AWS GameLift Server WebSocket connection string: {}", connection_string);
+        let (mut ws_stream, _) = tokio_tungstenite::connect_async(connection_string).await?;
 
         let callback_handler = self.state.clone();
         self.handle = Some(tokio::spawn(async move {

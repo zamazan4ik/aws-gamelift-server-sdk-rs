@@ -12,10 +12,7 @@ impl HttpClient {
     pub fn new() -> Self {
         use reqwest::header;
         let mut headers = header::HeaderMap::new();
-        headers.insert(
-            header::ACCEPT,
-            header::HeaderValue::from_static("application/json"),
-        );
+        headers.insert(header::ACCEPT, header::HeaderValue::from_static("application/json"));
         headers.insert(
             header::HeaderName::from_static("gamelift-server-pid"),
             header::HeaderValue::from_str(std::process::id().to_string().as_str()).unwrap(),
@@ -35,13 +32,13 @@ impl HttpClient {
     where
         T: protobuf::Message,
     {
+        let message_as_bytes = message.write_to_bytes().unwrap();
+        let message_header = format!("{}", get_message_type(&message));
+        log::debug!("Message name: {}", message_header);
         self.http_client
             .post(self.uri.clone())
-            .header(
-                "gamelift-target",
-                format!("{}.{}", MESSAGE_TYPE_PREFIX, get_message_type(&message)),
-            )
-            .body(message.write_to_bytes().unwrap())
+            .header("gamelift-target", message_header)
+            .body(message_as_bytes)
             .send()
             .await
             .map_err(|error| {
@@ -142,17 +139,13 @@ impl HttpClient {
         &self,
         request: crate::entity::DescribePlayerSessionsRequest,
     ) -> Result<crate::entity::DescribePlayerSessionsResult, crate::error::GameLiftErrorType> {
-        let response = self
-            .send(crate::mapper::describe_player_sessions_mapper(request))
-            .await;
+        let response = self.send(crate::mapper::describe_player_sessions_mapper(request)).await;
 
         match response {
             Ok(response) => {
                 let proto_response: crate::protos::generated_with_pure::sdk::DescribePlayerSessionsResponse =
                     serde_json::from_str(response.text().await.unwrap().as_str()).unwrap();
-                Ok(crate::mapper::describe_player_session_request_mapper(
-                    proto_response,
-                ))
+                Ok(crate::mapper::describe_player_session_request_mapper(proto_response))
             }
             Err(error) => Err(error),
         }
@@ -162,9 +155,7 @@ impl HttpClient {
         &self,
         request: crate::entity::StartMatchBackfillRequest,
     ) -> Result<crate::entity::StartMatchBackfillResult, crate::error::GameLiftErrorType> {
-        let response = self
-            .send(crate::mapper::start_match_backfill_request_mapper(request))
-            .await;
+        let response = self.send(crate::mapper::start_match_backfill_request_mapper(request)).await;
 
         match response {
             Ok(response) => {
@@ -180,9 +171,7 @@ impl HttpClient {
         &self,
         request: crate::entity::StopMatchBackfillRequest,
     ) -> Result<(), crate::error::GameLiftErrorType> {
-        self.send(crate::mapper::stop_matchmaking_request_mapper(request))
-            .await
-            .map(|_| ())
+        self.send(crate::mapper::stop_matchmaking_request_mapper(request)).await.map(|_| ())
     }
 
     pub async fn get_instance_certificate(
@@ -217,11 +206,7 @@ mod tests {
         let process_ready = crate::protos::generated_with_pure::sdk::ProcessReady::default();
 
         assert_eq!(
-            format!(
-                "{}.{}",
-                MESSAGE_TYPE_PREFIX,
-                get_message_type(&process_ready)
-            ),
+            format!("{}.{}", MESSAGE_TYPE_PREFIX, get_message_type(&process_ready)),
             "com.amazon.whitewater.auxproxy.pbuffer.ProcessReady"
         );
     }

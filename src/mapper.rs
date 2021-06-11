@@ -15,12 +15,10 @@ pub fn game_session_mapper(
     converted_game_session.dns_name = Some(source_game_session.dnsName);
 
     for game_property in source_game_session.gameProperties {
-        converted_game_session
-            .game_properties
-            .push(crate::entity::GameProperty {
-                key: Some(game_property.key),
-                value: Some(game_property.value),
-            });
+        converted_game_session.game_properties.push(crate::entity::GameProperty {
+            key: Some(game_property.key),
+            value: Some(game_property.value),
+        });
     }
 
     converted_game_session
@@ -74,9 +72,7 @@ pub fn describe_player_session_request_mapper(
 pub fn start_matchmaking_result_mapper(
     source: crate::protos::generated_with_pure::sdk::BackfillMatchmakingResponse,
 ) -> crate::entity::StartMatchBackfillResult {
-    crate::entity::StartMatchBackfillResult {
-        ticket_id: source.ticketId,
-    }
+    crate::entity::StartMatchBackfillResult { ticket_id: source.ticketId }
 }
 
 pub fn get_instance_certificate_result_mapper(
@@ -138,9 +134,7 @@ pub fn player_mapper(
 
     if let Some(player_attributes) = source.player_attributes {
         for (id, player_attribute) in player_attributes {
-            result
-                .playerAttributes
-                .insert(id, attribute_value_mapper(player_attribute));
+            result.playerAttributes.insert(id, attribute_value_mapper(player_attribute));
         }
     }
 
