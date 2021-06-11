@@ -1,5 +1,7 @@
 = AWS GameLift Server SDK for Rust
 
+image::logo.png[Aws,300,300,align="center"]
+
 == What
 An **unofficial** port of AWS GameLift Server SDK for Rust.
 
