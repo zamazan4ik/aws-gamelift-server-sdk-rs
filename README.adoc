@@ -1,6 +1,16 @@
 = AWS GameLift Server SDK for Rust
 
-image::logo.png[Aws,300,300,align="center"]
+ifdef::env-github[]
+++++
+<p align="center">
+  <img width="300" height="300" src="logo.png">
+</p>
+++++
+endif::[]
+
+ifndef::env-github[]
+image::logo.png[A map, 300, align=center]
+endif::[]
 
 == What
 An **unofficial** port of AWS GameLift Server SDK for Rust.
