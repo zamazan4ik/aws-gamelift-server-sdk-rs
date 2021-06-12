@@ -1,8 +1,14 @@
 [package]
 name = "aws-gamelift-server-sdk-rs"
 version = "0.1.0"
-authors = ["Alexander Zaitsev <zamazan4ik@tut.by>"]
 edition = "2018"
+description = "AWS GameLift Server SDK for Rust"
+repository = "https://github.com/ZaMaZaN4iK/aws-gamelift-server-sdk-rs"
+documentation = "https://docs.rs/aws-gamelift-server-sdk-rs"
+readme = "README.adoc"
+keywords = ["aws", "gamelift"]
+license = "MIT"
+authors = ["Alexander Zaitsev <zamazan4ik@tut.by>"]
 
 [features]
 default = ["with-serde"]
