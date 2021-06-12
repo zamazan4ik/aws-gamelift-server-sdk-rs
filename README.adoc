@@ -1,17 +1,52 @@
 = AWS GameLift Server SDK for Rust
 
+ifdef::env-github[]
+++++
+<p align="center">
+  <img width="300" height="300" src="logo.png">
+</p>
+++++
+endif::[]
+
+ifndef::env-github[]
+image::logo.png[A map, 300, align=center]
+endif::[]
+
 == What
 An **unofficial** port of AWS GameLift Server SDK for Rust.
 
+== How to build
+1. Install the latest stable Rust toolchain
+2. Checkout this repository and change directory to the root
+3. `cargo build`
+
 == Compatibility
-This crate is compatible with **3.4.1** AWS GameLift Server SDK.
+This crate is compatible with **4.0.2** AWS GameLift Server SDK.
 We support the latest stable Rust version.
 
 == Contributing
 If you find any bug, missed functionality or just want to share any feedback - feel free to open an issue. Will be wonderful, if you create a PR - it makes my life much easier.
 
-== Protobuf
-AWS GameLift Server SDK uses Protobuf 3 protocol. Unfortunately, AWS doesn't provide officially original Protobuf files. So we use reverse-engineered .proto files from this repository: https://github.com/dplusic/GameLift-Server-Protobuf
+== Testing
+You can test the library directly on AWS GameLift service, but it can be too slow and expensive for you. I suggest to you official https://docs.aws.amazon.com/gamelift/latest/developerguide/integration-testing-local.html[AWS GameLift Local]. Unfortunately, for now AWS doesn't provide any official Docker image for the local server, so you can use my https://hub.docker.com/repository/docker/zamazan4ik/gamelift_local[Docker image]. The original repo is https://github.com/ZaMaZaN4iK/docker-gamelift-local[here]. Just run your local server and run any application with the SDK (any example is fine too).
+
+== Architecture
+Now there are 2 official AWS GameLift Server SDK versions: C++ and C#. They look pretty similar, but under the hood they work differently. Even versioning is different for them. At the moment of writing this, C++ SDK had **3.4.1** version, C# had **4.0.2** version and they had different Protobuf backward-compatible schema.
+
+C++ SDK uses 2 https://socket.io/[Socket.io] connections to the AWS GameLift Server process on a node (this process's name is `AuxProxy`). The first connection is used for sending requests from the SDK to AuxProxy and receiving the answers (request-response pattern). The second connection is used for receiving events from AuxProxy.
+
+C# SDK uses another approach. It uses HTTP protocol for implementing request-response pattern and raw WebSocket connection for receiving the events from AuxProxy.
+
+Initially this library (AWS GameLift Server SDK in Rust) tried to use the C++ approach with 2 Socket.io connections. Unfortunately, I've failed to implement it properly for several reasons. Request-response pattern with **Socket.io** looks ugly. **Socket.io** library in Rust is too young and unstable from my point of view (I've tried to use https://github.com/1c3t3a/rust-socketio[rust-socketio]).
+
+So the way with HTTP + WebSocket was chosen as a primary design - I just like it more, and it was easier for me to properly implement the SDK in this way. If you have any concerns about usability, efficiency or anything else - please let me know!
+
+== Protobuf schema
+AWS GameLift Server SDK uses Protobuf 3 protocol. Unfortunately, AWS doesn't provide officially original Protobuf files yet. So we use reverse-engineered `.proto` files from this repository: https://github.com/dplusic/GameLift-Server-Protobuf[Protobuf schema]. Since the original repo can be outdated, I also maintain my own fork (any help with maintaining is appreciated a lot): https://github.com/ZaMaZaN4iK/GameLift-Server-Protobuf[Another Protobuf schema].
 
 == Notes
-If you are looking for AWS GameLift SDK (without **Server** word) - this crate is not for you. Please use https://github.com/rusoto/rusoto/tree/master/rusoto/services/gamelift[rusoto] or an official https://github.com/awslabs/aws-sdk-rust[AWS Rust SDK] (at the moment of writing this GameLift is not supported in this SDK).
+If you are looking for AWS GameLift SDK (without **Server** word) - this crate is not for you. Please use https://github.com/rusoto/rusoto/tree/master/rusoto/services/gamelift[rusoto], or an official https://github.com/awslabs/aws-sdk-rust[AWS Rust SDK] (at the moment of writing this GameLift is not supported in this SDK).
+
+== Useful links
+1. https://forums.awsgametech.com/t/differences-between-c-and-c-aws-gamelift-server-sdk/10812[AWSGAMETECH forum thread] about differences between SDK and semi-official Protobuf schema
+2. **Unofficial** https://github.com/dplusic/GameLift-Nodejs-ServerSDK[NodeJS] AWS GameLift Server SDK

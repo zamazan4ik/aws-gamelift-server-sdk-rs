@@ -1,12 +1,14 @@
+//! An unofficial port of AWS GameLift Server SDK for Rust.
+//!
+//! Official documentation for the SDK (C# version), can be found [here](https://docs.aws.amazon.com/gamelift/latest/developerguide/integration-server-sdk-csharp-ref.html).
+
+pub mod api;
+pub mod entity;
 pub mod error;
-
-pub mod sdk {
-    include!(concat!(
-        env!("OUT_DIR"),
-        "/com.amazon.whitewater.auxproxy.pbuffer.rs"
-    ));
-}
-
-pub fn test_protobuf() -> sdk::ProcessEnding {
-    sdk::ProcessEnding::default()
-}
+mod http_client;
+pub mod log_parameters;
+mod mapper;
+pub mod process_parameters;
+pub mod protos;
+pub mod server_state;
+mod web_socket_listener;

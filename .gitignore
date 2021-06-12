@@ -1,7 +1,6 @@
-#Rust
+# Rust
 /target
 Cargo.lock
 
-#IDE
+# IDE
 .idea
-

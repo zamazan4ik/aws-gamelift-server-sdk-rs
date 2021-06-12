@@ -1,0 +1,12 @@
+# Due to our desire to enable certain
+# rustfmt features that are only available
+# in nightly builds of rustfmt, we set
+# this flag to true.
+unstable_features = true
+
+format_code_in_doc_comments = true
+wrap_comments = true
+format_strings = true
+imports_granularity = "Crate"
+use_small_heuristics = "Max"
+use_field_init_shorthand = true
