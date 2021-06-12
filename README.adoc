@@ -1,11 +1,14 @@
 = AWS GameLift Server SDK for Rust
 
 // URIs:
+:uri-docs: https://docs.rs/aws-gamelift-server-sdk-rs
+:img-docs: https://docs.rs/aws-gamelift-server-sdk-rs/badge.svg
 :uri-build-status: https://github.com/zamazan4ik/aws-gamelift-server-sdk-rs/actions
 :img-build-status: https://github.com/zamazan4ik/aws-gamelift-server-sdk-rs/workflows/Continuous%20integration/badge.svg
 :uri-license: https://github.com/zamazan4ik/aws-gamelift-server-sdk-rs/blob/main/LICENSE
 :img-license: https://img.shields.io/badge/License-MIT-blue.svg
 
+image:{img-docs}[Docs,link={uri-docs}]
 image:{img-build-status}[Build Status Badge,link={uri-build-status}]
 image:{img-license}[License,link={uri-license}]
 
