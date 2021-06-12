@@ -11,8 +11,8 @@ pub struct ServerStateInner {
     http_client: crate::http_client::HttpClient,
 }
 
-impl ServerStateInner {
-    pub fn new() -> Self {
+impl Default for ServerStateInner {
+    fn default() -> Self {
         Self {
             process_parameters: None,
             is_process_ready: false,
@@ -21,7 +21,9 @@ impl ServerStateInner {
             http_client: crate::http_client::HttpClient::new(),
         }
     }
+}
 
+impl ServerStateInner {
     pub fn on_start_game_session(&mut self, game_session: crate::entity::GameSession) {
         /*log::debug!(
             "ServerState got the startGameSession signal. GameSession: {:?}",
@@ -103,15 +105,17 @@ pub struct ServerState {
     health_report_task: Option<JoinHandle<()>>,
 }
 
-impl ServerState {
-    pub fn new() -> Self {
+impl Default for ServerState {
+    fn default() -> Self {
         Self {
-            inner: std::sync::Arc::new(tokio::sync::Mutex::new(ServerStateInner::new())),
+            inner: std::sync::Arc::new(tokio::sync::Mutex::new(ServerStateInner::default())),
             websocket_listener: None,
             health_report_task: None,
         }
     }
+}
 
+impl ServerState {
     pub async fn process_ready(
         &mut self,
         process_parameters: crate::process_parameters::ProcessParameters,
@@ -269,6 +273,9 @@ impl ServerState {
 
     pub async fn shutdown(&self) -> bool {
         self.inner.lock().await.is_process_ready = false;
+        if let Some(health_report_task) = &self.health_report_task {
+            health_report_task.abort();
+        }
         self.websocket_listener.as_ref().unwrap().disconnect()
     }
 }

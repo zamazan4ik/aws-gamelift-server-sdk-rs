@@ -1,11 +1,11 @@
 use futures_util::StreamExt;
 
-const HOSTNAME: &'static str = "127.0.0.1";
+const HOSTNAME: &str = "127.0.0.1";
 const PORT: i32 = 5759;
-const PID_KEY: &'static str = "pID";
-const SDK_VERSION_KEY: &'static str = "sdkVersion";
-const FLAVOR_KEY: &'static str = "sdkLanguage";
-const FLAVOR: &'static str = "Rust";
+const PID_KEY: &str = "pID";
+const SDK_VERSION_KEY: &str = "sdkVersion";
+const FLAVOR_KEY: &str = "sdkLanguage";
+const FLAVOR: &str = "Rust";
 
 pub struct WebSocketListener {
     handle: Option<tokio::task::JoinHandle<()>>,
@@ -25,7 +25,7 @@ impl WebSocketListener {
             return true;
         }
 
-        return false;
+        false
     }
 
     pub async fn connect(&mut self) -> Result<(), crate::error::GameLiftErrorType> {

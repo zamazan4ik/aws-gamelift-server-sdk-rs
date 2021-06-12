@@ -1,8 +1,6 @@
 use protobuf::RepeatedField;
 use reqwest::Response;
 
-const MESSAGE_TYPE_PREFIX: &'static str = "com.amazon.whitewater.auxproxy.pbuffer";
-
 pub struct HttpClient {
     uri: reqwest::Url,
     http_client: reqwest::Client,
@@ -33,7 +31,7 @@ impl HttpClient {
         T: protobuf::Message,
     {
         let message_as_bytes = message.write_to_bytes().unwrap();
-        let message_header = format!("{}", get_message_type(&message));
+        let message_header = get_message_type(&message).to_string();
         log::debug!("Message name: {}", message_header);
         self.http_client
             .post(self.uri.clone())
@@ -55,9 +53,11 @@ impl HttpClient {
         port: i32,
         log_paths_to_upload: Vec<String>,
     ) -> Result<(), crate::error::GameLiftErrorType> {
-        let mut message = crate::protos::generated_with_pure::sdk::ProcessReady::default();
-        message.port = port;
-        message.logPathsToUpload = RepeatedField::from_vec(log_paths_to_upload);
+        let message = crate::protos::generated_with_pure::sdk::ProcessReady {
+            port,
+            logPathsToUpload: RepeatedField::from_vec(log_paths_to_upload),
+            ..Default::default()
+        };
 
         self.send(message).await.map(|_| ())
     }
@@ -72,8 +72,10 @@ impl HttpClient {
         &self,
         health_status: bool,
     ) -> Result<(), crate::error::GameLiftErrorType> {
-        let mut message = crate::protos::generated_with_pure::sdk::ReportHealth::default();
-        message.healthStatus = health_status;
+        let message = crate::protos::generated_with_pure::sdk::ReportHealth {
+            healthStatus: health_status,
+            ..Default::default()
+        };
 
         self.send(message).await.map(|_| ())
     }
@@ -82,8 +84,10 @@ impl HttpClient {
         &self,
         game_session_id: crate::entity::GameSessionId,
     ) -> Result<(), crate::error::GameLiftErrorType> {
-        let mut message = crate::protos::generated_with_pure::sdk::GameSessionActivate::default();
-        message.gameSessionId = game_session_id;
+        let message = crate::protos::generated_with_pure::sdk::GameSessionActivate {
+            gameSessionId: game_session_id,
+            ..Default::default()
+        };
 
         self.send(message).await.map(|_| ())
     }
@@ -92,8 +96,10 @@ impl HttpClient {
         &self,
         game_session_id: crate::entity::GameSessionId,
     ) -> Result<(), crate::error::GameLiftErrorType> {
-        let mut message = crate::protos::generated_with_pure::sdk::GameSessionTerminate::default();
-        message.gameSessionId = game_session_id;
+        let message = crate::protos::generated_with_pure::sdk::GameSessionTerminate {
+            gameSessionId: game_session_id,
+            ..Default::default()
+        };
 
         self.send(message).await.map(|_| ())
     }
@@ -103,10 +109,11 @@ impl HttpClient {
         game_session_id: crate::entity::GameSessionId,
         player_session_policy: crate::entity::PlayerSessionCreationPolicy,
     ) -> Result<(), crate::error::GameLiftErrorType> {
-        let mut message =
-            crate::protos::generated_with_pure::sdk::UpdatePlayerSessionCreationPolicy::default();
-        message.gameSessionId = game_session_id;
-        message.newPlayerSessionCreationPolicy = player_session_policy.to_string();
+        let message = crate::protos::generated_with_pure::sdk::UpdatePlayerSessionCreationPolicy {
+            gameSessionId: game_session_id,
+            newPlayerSessionCreationPolicy: player_session_policy.to_string(),
+            ..Default::default()
+        };
 
         self.send(message).await.map(|_| ())
     }
@@ -116,9 +123,11 @@ impl HttpClient {
         player_session_id: crate::entity::PlayerSessionId,
         game_session_id: crate::entity::GameSessionId,
     ) -> Result<(), crate::error::GameLiftErrorType> {
-        let mut message = crate::protos::generated_with_pure::sdk::AcceptPlayerSession::default();
-        message.playerSessionId = player_session_id;
-        message.gameSessionId = game_session_id;
+        let message = crate::protos::generated_with_pure::sdk::AcceptPlayerSession {
+            playerSessionId: player_session_id,
+            gameSessionId: game_session_id,
+            ..Default::default()
+        };
 
         self.send(message).await.map(|_| ())
     }
@@ -128,9 +137,11 @@ impl HttpClient {
         player_session_id: crate::entity::PlayerSessionId,
         game_session_id: crate::entity::GameSessionId,
     ) -> Result<(), crate::error::GameLiftErrorType> {
-        let mut message = crate::protos::generated_with_pure::sdk::RemovePlayerSession::default();
-        message.playerSessionId = player_session_id;
-        message.gameSessionId = game_session_id;
+        let message = crate::protos::generated_with_pure::sdk::RemovePlayerSession {
+            playerSessionId: player_session_id,
+            gameSessionId: game_session_id,
+            ..Default::default()
+        };
 
         self.send(message).await.map(|_| ())
     }
@@ -199,15 +210,12 @@ fn get_message_type<T>(_: &T) -> &str {
 
 #[cfg(test)]
 mod tests {
-    use crate::http_client::{get_message_type, MESSAGE_TYPE_PREFIX};
+    use crate::http_client::get_message_type;
 
     #[test]
     fn it_works() {
         let process_ready = crate::protos::generated_with_pure::sdk::ProcessReady::default();
 
-        assert_eq!(
-            format!("{}.{}", MESSAGE_TYPE_PREFIX, get_message_type(&process_ready)),
-            "com.amazon.whitewater.auxproxy.pbuffer.ProcessReady"
-        );
+        assert_eq!(get_message_type(&process_ready), "ProcessReady");
     }
 }

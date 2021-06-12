@@ -53,7 +53,7 @@ impl Default for UpdateGameSession {
     fn default() -> Self {
         Self {
             game_session: Default::default(),
-            update_reason: UpdateReason::UNKNOWN,
+            update_reason: UpdateReason::Unknown,
             backfill_ticket_id: "".to_string(),
         }
     }
@@ -61,11 +61,11 @@ impl Default for UpdateGameSession {
 
 #[derive(strum_macros::EnumString)]
 pub enum UpdateReason {
-    MATCHMAKING_DATA_UPDATED,
-    BACKFILL_FAILED,
-    BACKFILL_TIMED_OUT,
-    BACKFILL_CANCELLED,
-    UNKNOWN,
+    MatchmakingDataUpdated,
+    BackfillFailed,
+    BackfillTimedOut,
+    BackfillCancelled,
+    Unknown,
 }
 
 pub struct Player {
@@ -160,10 +160,10 @@ pub struct PlayerSession {
 #[derive(strum_macros::EnumString)]
 pub enum PlayerSessionStatus {
     NotSet,
-    RESERVED,
-    ACTIVE,
-    COMPLETED,
-    TIMEDOUT,
+    Reserved,
+    Active,
+    Completed,
+    Timedout,
 }
 
 /// This data type is used to send a matchmaking backfill request. The
@@ -228,10 +228,10 @@ pub struct AttributeValue {
 
 #[derive(Clone, Copy)]
 pub enum AttrType {
-    STRING = 1,
-    DOUBLE,
-    STRING_LIST,
-    STRING_DOUBLE_MAP,
+    String = 1,
+    Double,
+    StringList,
+    StringDoubleMap,
 }
 
 pub struct GetInstanceCertificateResult {

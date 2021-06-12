@@ -5,17 +5,19 @@ use crate::{
     error::GameLiftErrorType,
 };
 
-pub const SDK_VERSION: &'static str = "4.0.2";
+pub const SDK_VERSION: &str = "4.0.2";
 
 pub struct Api {
     state: crate::server_state::ServerState,
 }
 
-impl Api {
-    pub fn new() -> Self {
-        Self { state: crate::server_state::ServerState::new() }
+impl Default for Api {
+    fn default() -> Self {
+        Self { state: crate::server_state::ServerState::default() }
     }
+}
 
+impl Api {
     /// Returns the current version number of the SDK built into the server
     /// process.
     pub fn get_sdk_version() -> &'static str {

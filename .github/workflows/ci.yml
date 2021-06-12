@@ -53,14 +53,6 @@ jobs:
           - beta
           - nightly
 
-        include:
-          - rust: stable
-            features: "--features full"
-          - rust: beta
-            features: "--features full"
-          - rust: nightly
-            features: "--all-features"
-
     steps:
       - uses: actions/checkout@v2
 

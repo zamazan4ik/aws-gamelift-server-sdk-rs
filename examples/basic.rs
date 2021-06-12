@@ -1,12 +1,12 @@
 use aws_gamelift_server_sdk_rs::{
-    entity::*, log_parameters::LogParameters, process_parameters::ProcessParameters,
+    log_parameters::LogParameters, process_parameters::ProcessParameters,
 };
 
 #[tokio::main]
 async fn main() {
     env_logger::init();
 
-    let mut client = aws_gamelift_server_sdk_rs::api::Api::new();
+    let mut client = aws_gamelift_server_sdk_rs::api::Api::default();
     log::debug!(
         "AWS GameLift Server SDK version: {}",
         aws_gamelift_server_sdk_rs::api::Api::get_sdk_version()
@@ -18,8 +18,8 @@ async fn main() {
 
     if let Err(error) = client
         .process_ready(ProcessParameters {
-            on_start_game_session: Box::new(|game_session| ()),
-            on_update_game_session: Box::new(|update_game_session| ()),
+            on_start_game_session: Box::new(|_game_session| ()),
+            on_update_game_session: Box::new(|_update_game_session| ()),
             on_process_terminate: Box::new(|| ()),
             on_health_check: Box::new(|| true),
             port: 14000,
@@ -36,5 +36,6 @@ async fn main() {
             tokio::time::sleep(std::time::Duration::from_secs(10)).await;
         }
     })
-    .await;
+    .await
+    .unwrap();
 }
