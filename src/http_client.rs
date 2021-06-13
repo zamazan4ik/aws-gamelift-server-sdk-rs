@@ -88,7 +88,6 @@ impl HttpClient {
             gameSessionId: game_session_id,
             ..Default::default()
         };
-
         self.send(message).await.map(|_| ())
     }
 
@@ -213,7 +212,7 @@ mod tests {
     use crate::http_client::get_message_type;
 
     #[test]
-    fn it_works() {
+    fn get_message_type_test() {
         let process_ready = crate::protos::generated_with_pure::sdk::ProcessReady::default();
 
         assert_eq!(get_message_type(&process_ready), "ProcessReady");

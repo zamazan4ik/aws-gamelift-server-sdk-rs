@@ -44,7 +44,6 @@ impl WebSocketListener {
         self.handle = Some(tokio::spawn(async move {
             while let Some(msg) = ws_stream.next().await {
                 let msg = msg.unwrap();
-                log::debug!("Received message: {}", msg);
                 if msg.is_text() {
                     let message_text = msg.into_text().unwrap();
                     let v: serde_json::Value = serde_json::from_str(message_text.as_str()).unwrap();

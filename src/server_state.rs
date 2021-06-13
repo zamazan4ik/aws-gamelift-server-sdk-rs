@@ -25,10 +25,6 @@ impl Default for ServerStateInner {
 
 impl ServerStateInner {
     pub fn on_start_game_session(&mut self, game_session: crate::entity::GameSession) {
-        /*log::debug!(
-            "ServerState got the startGameSession signal. GameSession: {:?}",
-            game_session
-        );*/
         if !self.is_process_ready {
             log::debug!("Got a game session on inactive process. Ignoring.");
             return;
@@ -53,10 +49,6 @@ impl ServerStateInner {
         update_reason: crate::entity::UpdateReason,
         backfill_ticket_id: String,
     ) {
-        /*log::debug!(
-            "ServerState got the updateGameSession signal. UpdateGameSession: {}",
-            raw_update_game_session
-        );*/
         if !self.is_process_ready {
             log::warn!("Got an updated game session on inactive process.");
             return;
@@ -78,8 +70,6 @@ impl ServerStateInner {
 
         log::debug!("Reporting health using the OnHealthCheck callback.");
 
-        //let health_check_result =
-        // (self.process_parameters.as_ref().unwrap().on_health_check)();
         let result = tokio::time::timeout(
             std::time::Duration::from_secs(HEALTHCHECK_TIMEOUT_SECONDS),
             async { (self.process_parameters.as_ref().unwrap().on_health_check)() },
@@ -139,7 +129,8 @@ impl ServerState {
     }
 
     pub async fn activate_game_session(&mut self) -> Result<(), GameLiftErrorType> {
-        if let Some(game_session_id) = self.inner.lock().await.game_session_id.clone() {
+        let game_session_id = self.inner.lock().await.game_session_id.clone();
+        if let Some(game_session_id) = game_session_id {
             self.inner.lock().await.http_client.activate_game_session(game_session_id).await
         } else {
             Err(crate::error::GameLiftErrorType::GameSessionIdNotSet)
@@ -147,7 +138,8 @@ impl ServerState {
     }
 
     pub async fn terminate_game_session(&mut self) -> Result<(), GameLiftErrorType> {
-        if let Some(game_session_id) = self.inner.lock().await.game_session_id.clone() {
+        let game_session_id = self.inner.lock().await.game_session_id.clone();
+        if let Some(game_session_id) = game_session_id {
             self.inner.lock().await.http_client.terminate_game_session(game_session_id).await
         } else {
             Err(crate::error::GameLiftErrorType::GameSessionIdNotSet)
@@ -176,7 +168,8 @@ impl ServerState {
         &mut self,
         player_session_policy: crate::entity::PlayerSessionCreationPolicy,
     ) -> Result<(), GameLiftErrorType> {
-        if let Some(game_session_id) = self.inner.lock().await.game_session_id.clone() {
+        let game_session_id = self.inner.lock().await.game_session_id.clone();
+        if let Some(game_session_id) = game_session_id {
             self.inner
                 .lock()
                 .await
@@ -192,7 +185,8 @@ impl ServerState {
         &mut self,
         player_session_id: crate::entity::PlayerSessionId,
     ) -> Result<(), GameLiftErrorType> {
-        if let Some(game_session_id) = self.inner.lock().await.game_session_id.clone() {
+        let game_session_id = self.inner.lock().await.game_session_id.clone();
+        if let Some(game_session_id) = game_session_id {
             self.inner
                 .lock()
                 .await
@@ -208,7 +202,8 @@ impl ServerState {
         &mut self,
         player_session_id: crate::entity::PlayerSessionId,
     ) -> Result<(), GameLiftErrorType> {
-        if let Some(game_session_id) = self.inner.lock().await.game_session_id.clone() {
+        let game_session_id = self.inner.lock().await.game_session_id.clone();
+        if let Some(game_session_id) = game_session_id {
             self.inner
                 .lock()
                 .await
