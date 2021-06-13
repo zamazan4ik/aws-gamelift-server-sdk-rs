@@ -1,3 +1,4 @@
+use crate::entity::GameProperty;
 use protobuf::RepeatedField;
 
 pub fn game_session_mapper(
@@ -7,21 +8,24 @@ pub fn game_session_mapper(
         game_session_id: Some(source_game_session.gameSessionId),
         name: Some(source_game_session.name),
         fleet_id: Some(source_game_session.fleetId),
-        max_player_session_count: source_game_session.maxPlayers,
+        max_players: source_game_session.maxPlayers,
         port: source_game_session.port,
         ip_address: Some(source_game_session.ipAddress),
         game_session_data: Some(source_game_session.gameSessionData),
         matchmaker_data: Some(source_game_session.matchmakerData),
-        game_properties: vec![],
+        game_properties: None,
         dns_name: Some(source_game_session.dnsName),
     };
 
+    let mut game_properties = Vec::<GameProperty>::new();
     for game_property in source_game_session.gameProperties {
-        converted_game_session.game_properties.push(crate::entity::GameProperty {
+        game_properties.push(crate::entity::GameProperty {
             key: Some(game_property.key),
             value: Some(game_property.value),
         });
     }
+
+    converted_game_session.game_properties = Some(game_properties);
 
     converted_game_session
 }

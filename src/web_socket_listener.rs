@@ -44,100 +44,40 @@ impl WebSocketListener {
         self.handle = Some(tokio::spawn(async move {
             while let Some(msg) = ws_stream.next().await {
                 let msg = msg.unwrap();
+                log::debug!("Received message: {}", msg);
                 if msg.is_text() {
                     let message_text = msg.into_text().unwrap();
-                    let p: crate::protos::generated_with_pure::sdk::AuxProxyToSdkEnvelope =
-                        serde_json::from_str(message_text.as_str()).unwrap();
-                    let inner_message = p.inner_message.unwrap();
-                    if inner_message
-                        .is::<crate::protos::generated_with_pure::sdk::ActivateGameSession>()
-                    {
-                        log::info!("Received ActivateGameSession event");
-                        let unpack_result =
-                            inner_message
-                                .unpack::<crate::protos::generated_with_pure::sdk::ActivateGameSession>(
-                                );
-                        match unpack_result {
-                            Ok(value) => {
-                                if let Some(value) = value {
-                                    let game_session = crate::mapper::game_session_mapper(
-                                        value.gameSession.unwrap(),
-                                    );
-                                    callback_handler
-                                        .lock()
-                                        .await
-                                        .on_start_game_session(game_session);
-                                } else {
-                                    log::error!(
-                                        "Type mismatch: cannot parse as ActivateGameSession event"
-                                    )
-                                }
-                            }
-                            Err(error) => {
-                                log::error!("Cannot parse ActivateGameSession event: {}", error)
-                            }
+                    let v: serde_json::Value = serde_json::from_str(message_text.as_str()).unwrap();
+                    let message_type =
+                        get_inner_message_type(&v).expect("Unexpected received message");
+
+                    match message_type {
+                        ReceivedMessageType::ActivateGameSession(message) => {
+                            log::info!("Received ActivateGameSession event");
+                            callback_handler
+                                .lock()
+                                .await
+                                .on_start_game_session(message.game_session);
                         }
-                    } else if inner_message
-                        .is::<crate::protos::generated_with_pure::sdk::UpdateGameSession>()
-                    {
-                        log::info!("Received UpdateGameSession event");
-                        let unpack_result = inner_message
-                            .unpack::<crate::protos::generated_with_pure::sdk::UpdateGameSession>(
+                        ReceivedMessageType::UpdateGameSession(message) => {
+                            log::info!("Received UpdateGameSession event");
+
+                            let game_session = message.game_session.unwrap();
+                            let update_reason = message.update_reason;
+                            callback_handler.lock().await.on_update_game_session(
+                                game_session,
+                                update_reason,
+                                message.backfill_ticket_id,
                             );
-
-                        match unpack_result {
-                            Ok(value) => {
-                                if let Some(value) = value {
-                                    use std::str::FromStr;
-
-                                    let game_session = crate::mapper::game_session_mapper(
-                                        value.gameSession.unwrap(),
-                                    );
-                                    let update_reason =
-                                        crate::entity::UpdateReason::from_str(&value.updateReason)
-                                            .unwrap();
-                                    callback_handler.lock().await.on_update_game_session(
-                                        game_session,
-                                        update_reason,
-                                        value.backfillTicketId,
-                                    );
-                                } else {
-                                    log::error!(
-                                        "Type mismatch: cannot parse as UpdateGameSession event"
-                                    )
-                                }
-                            }
-                            Err(error) => {
-                                log::error!("Cannot parse UpdateGameSession event: {}", error)
-                            }
                         }
-                    } else if inner_message
-                        .is::<crate::protos::generated_with_pure::sdk::TerminateProcess>()
-                    {
-                        log::info!("Received TerminateProcess event");
-                        let unpack_result = inner_message
-                            .unpack::<crate::protos::generated_with_pure::sdk::TerminateProcess>(
-                            );
+                        ReceivedMessageType::TerminateProcess(message) => {
+                            log::info!("Received TerminateProcess event");
 
-                        match unpack_result {
-                            Ok(value) => {
-                                if let Some(value) = value {
-                                    callback_handler
-                                        .lock()
-                                        .await
-                                        .on_terminate_process(value.terminationTime);
-                                } else {
-                                    log::error!(
-                                        "Type mismatch: cannot parse as TerminateProcess event"
-                                    )
-                                }
-                            }
-                            Err(error) => {
-                                log::error!("Cannot parse TerminateProcess event: {}", error)
-                            }
+                            callback_handler
+                                .lock()
+                                .await
+                                .on_terminate_process(message.termination_time.unwrap());
                         }
-                    } else {
-                        log::error!("Unknown message type received. Data is \n{}", message_text);
                     }
                 } else if msg.is_close() {
                     log::debug!("Socket disconnected. Message: {}", msg);
@@ -161,4 +101,63 @@ impl WebSocketListener {
 
         format!("ws://{}:{}?{}", HOSTNAME, PORT, query_string)
     }
+}
+
+enum ReceivedMessageType {
+    ActivateGameSession(crate::entity::ActivateGameSession),
+    UpdateGameSession(crate::entity::UpdateGameSession),
+    TerminateProcess(crate::entity::TerminateProcess),
+}
+
+fn remove_type_info_from_json(source: &serde_json::Value) -> serde_json::Value {
+    match source {
+        serde_json::Value::Object(m) => {
+            let mut new_fields = serde_json::Map::new();
+            for (k, v) in m {
+                if k != "@type" {
+                    new_fields.insert(k.clone(), v.clone());
+                }
+            }
+            serde_json::Value::Object(new_fields)
+        }
+        v => v.clone(),
+    }
+}
+
+fn get_inner_message_type(
+    v: &serde_json::Value,
+) -> Result<ReceivedMessageType, crate::error::GameLiftErrorType> {
+    if let Some(inner_message) = v.get("innerMessage") {
+        if let Some(message_type) = inner_message.get("@type") {
+            if let Some(message_type) = message_type.as_str() {
+                match message_type {
+                    "type.googleapis.com/com.amazon.whitewater.auxproxy.pbuffer.\
+                     ActivateGameSession" => {
+                        let unpack_result: crate::entity::ActivateGameSession =
+                            serde_json::from_value(remove_type_info_from_json(inner_message))
+                                .unwrap();
+                        return Ok(ReceivedMessageType::ActivateGameSession(unpack_result));
+                    }
+                    "type.googleapis.com/com.amazon.whitewater.auxproxy.pbuffer.\
+                     UpdateGameSession" => {
+                        let unpack_result: crate::entity::UpdateGameSession =
+                            serde_json::from_value(remove_type_info_from_json(inner_message))
+                                .unwrap();
+                        return Ok(ReceivedMessageType::UpdateGameSession(unpack_result));
+                    }
+                    "type.googleapis.com/com.amazon.whitewater.auxproxy.pbuffer.\
+                     TerminateProcess" => {
+                        let unpack_result: crate::entity::TerminateProcess =
+                            serde_json::from_value(remove_type_info_from_json(inner_message))
+                                .unwrap();
+                        return Ok(ReceivedMessageType::TerminateProcess(unpack_result));
+                    }
+
+                    _ => {}
+                };
+            }
+        }
+    }
+
+    Err(crate::error::GameLiftErrorType::UnexpectedWebSocketMessage)
 }

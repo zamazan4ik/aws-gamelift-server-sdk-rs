@@ -8,4 +8,5 @@ pub enum GameLiftErrorType {
     TerminationTimeNotSet,
     BadRequest,
     InternalServiceError,
+    UnexpectedWebSocketMessage,
 }

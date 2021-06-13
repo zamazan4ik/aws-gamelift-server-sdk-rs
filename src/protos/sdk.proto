@@ -80,7 +80,7 @@ message GetInstanceCertificate {
 //AuxProxy --> Sdk
 //This helps with routing the messages to the proper handlers in the SDKs.
 message AuxProxyToSdkEnvelope {
-    google.protobuf.Any inner_message = 1;
+    google.protobuf.Any innerMessage = 1;
 }
 message ActivateGameSession {
     GameSession gameSession = 1;
