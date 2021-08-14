@@ -53,5 +53,5 @@ async fn main() {
         }
     })
     .await
-    .unwrap();
+    .expect("Tokio task error");
 }

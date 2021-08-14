@@ -13,7 +13,8 @@ impl HttpClient {
         headers.insert(header::ACCEPT, header::HeaderValue::from_static("application/json"));
         headers.insert(
             header::HeaderName::from_static("gamelift-server-pid"),
-            header::HeaderValue::from_str(std::process::id().to_string().as_str()).unwrap(),
+            header::HeaderValue::from_str(std::process::id().to_string().as_str())
+                .expect("Cannot parse a gamelift-server-pid header value"),
         );
 
         Self {
@@ -31,7 +32,8 @@ impl HttpClient {
         T: protobuf::Message,
     {
         let message_as_bytes = message.write_to_bytes().unwrap();
-        let message_header = get_message_type(&message).to_string();
+        let message_header =
+            get_message_type(&message).expect("Cannot extract the message header").to_string();
         log::debug!("Message name: {}", message_header);
         self.http_client
             .post(self.uri.clone())
@@ -202,9 +204,9 @@ impl HttpClient {
     }
 }
 
-fn get_message_type<T>(_: &T) -> &str {
+fn get_message_type<T>(_: &T) -> Option<&str> {
     let full_name = std::any::type_name::<T>();
-    &full_name[full_name.rfind(':').unwrap() + 1..]
+    Some(&full_name[full_name.rfind(':')? + 1..])
 }
 
 #[cfg(test)]
@@ -215,6 +217,6 @@ mod tests {
     fn get_message_type_test() {
         let process_ready = crate::protos::generated_with_pure::sdk::ProcessReady::default();
 
-        assert_eq!(get_message_type(&process_ready), "ProcessReady");
+        assert_eq!(get_message_type(&process_ready), Some("ProcessReady"));
     }
 }

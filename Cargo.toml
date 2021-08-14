@@ -9,6 +9,7 @@ readme = "README.adoc"
 keywords = ["aws", "gamelift"]
 license = "MIT"
 authors = ["Alexander Zaitsev <zamazan4ik@tut.by>"]
+resolver = "2"
 
 [features]
 default = ["with-serde"]
