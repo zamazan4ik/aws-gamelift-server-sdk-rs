@@ -7,14 +7,9 @@ use crate::{
 
 pub const SDK_VERSION: &str = "4.0.2";
 
+#[derive(Default)]
 pub struct Api {
     state: crate::server_state::ServerState,
-}
-
-impl Default for Api {
-    fn default() -> Self {
-        Self { state: crate::server_state::ServerState::default() }
-    }
 }
 
 impl Api {

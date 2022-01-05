@@ -15,7 +15,7 @@ pub type GameSessionArn = String;
 pub type MatchmakingConfigurationArn = String;
 pub type NextToken = String;
 
-#[derive(serde::Deserialize)]
+#[derive(Default, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GameSession {
     pub game_session_id: Option<GameSessionId>,
@@ -28,23 +28,6 @@ pub struct GameSession {
     pub matchmaker_data: Option<String>,
     pub game_properties: Option<Vec<GameProperty>>,
     pub dns_name: Option<String>,
-}
-
-impl Default for GameSession {
-    fn default() -> Self {
-        Self {
-            game_session_id: None,
-            name: None,
-            fleet_id: None,
-            max_players: 0,
-            port: 0,
-            ip_address: None,
-            game_session_data: None,
-            matchmaker_data: None,
-            game_properties: None,
-            dns_name: None,
-        }
-    }
 }
 
 #[derive(serde::Deserialize)]
