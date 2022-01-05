@@ -1,4 +1,4 @@
-#[derive(serde::Deserialize)]
+#[derive(Debug, Default, Clone, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GameProperty {
     pub key: Option<String>,
@@ -15,7 +15,7 @@ pub type GameSessionArn = String;
 pub type MatchmakingConfigurationArn = String;
 pub type NextToken = String;
 
-#[derive(Default, serde::Deserialize)]
+#[derive(Debug, Default, Clone, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GameSession {
     pub game_session_id: Option<GameSessionId>,
@@ -30,13 +30,13 @@ pub struct GameSession {
     pub dns_name: Option<String>,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(Debug, Default, Clone, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActivateGameSession {
     pub game_session: GameSession,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(Debug, Clone, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateGameSession {
     pub game_session: Option<GameSession>,
@@ -54,7 +54,7 @@ impl Default for UpdateGameSession {
     }
 }
 
-#[derive(serde::Deserialize, strum_macros::EnumString)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, strum_macros::EnumString)]
 #[serde(rename_all = "camelCase")]
 pub enum UpdateReason {
     MatchmakingDataUpdated,
@@ -64,12 +64,13 @@ pub enum UpdateReason {
     Unknown,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(Debug, Default, Clone, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TerminateProcess {
     pub termination_time: Option<i64>,
 }
 
+#[derive(Debug, Default, Clone)]
 pub struct Player {
     pub player_id: Option<PlayerId>,
     pub player_attributes: Option<std::collections::HashMap<String, AttributeValue>>,
@@ -77,7 +78,7 @@ pub struct Player {
     pub latency_in_ms: Option<std::collections::HashMap<String, i32>>,
 }
 
-#[derive(strum_macros::ToString)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, strum_macros::ToString)]
 pub enum PlayerSessionCreationPolicy {
     NotSet,
     AcceptAll,
@@ -91,6 +92,7 @@ pub enum PlayerSessionCreationPolicy {
 /// all player sessions for the specified player. For large collections of
 /// player sessions, use the pagination parameters to retrieve results as
 /// sequential pages.
+#[derive(Debug, Default, Clone)]
 pub struct DescribePlayerSessionsRequest {
     /// Unique game session identifier. Use this parameter to request all player
     /// sessions for the specified game session. Game session ID format is as
@@ -134,6 +136,7 @@ pub struct DescribePlayerSessionsRequest {
     pub limit: i32,
 }
 
+#[derive(Debug, Clone)]
 pub struct DescribePlayerSessionsResult {
     pub player_sessions: Vec<PlayerSession>,
     pub next_token: NextToken,
@@ -145,6 +148,7 @@ impl Default for DescribePlayerSessionsResult {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct PlayerSession {
     pub player_id: Option<PlayerId>,
     pub player_session_id: Option<PlayerSessionId>,
@@ -159,7 +163,7 @@ pub struct PlayerSession {
     pub dns_name: Option<String>,
 }
 
-#[derive(strum_macros::EnumString)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, strum_macros::EnumString)]
 pub enum PlayerSessionStatus {
     NotSet,
     Reserved,
@@ -171,6 +175,7 @@ pub enum PlayerSessionStatus {
 /// This data type is used to send a matchmaking backfill request. The
 /// information is communicated to the GameLift service in a
 /// [start_match_backfill](crate::api::Api::start_match_backfill) call.
+#[derive(Debug, Default, Clone)]
 pub struct StartMatchBackfillRequest {
     /// Unique identifier for a matchmaking or match backfill request ticket. If
     /// no value is provided here, Amazon GameLift will generate one in the form
@@ -201,6 +206,7 @@ pub struct StartMatchBackfillRequest {
     pub players: Option<Vec<Player>>,
 }
 
+#[derive(Debug, Default, Clone)]
 pub struct StartMatchBackfillResult {
     pub ticket_id: TicketId,
 }
@@ -208,6 +214,7 @@ pub struct StartMatchBackfillResult {
 /// This data type is used to cancel a matchmaking backfill request. The
 /// information is communicated to the GameLift service in a
 /// [stop_match_backfill](crate::api::Api::stop_match_backfill) call.
+#[derive(Debug, Default, Clone)]
 pub struct StopMatchBackfillRequest {
     /// Unique identifier of the backfill request ticket to be canceled.
     pub ticket_id: Option<TicketId>,
@@ -220,6 +227,7 @@ pub struct StopMatchBackfillRequest {
     pub matchmaking_configuration_arn: Option<MatchmakingConfigurationArn>,
 }
 
+#[derive(Debug, Clone)]
 pub struct AttributeValue {
     pub attr_type: AttrType,
     pub s: Option<String>,
@@ -228,7 +236,7 @@ pub struct AttributeValue {
     pub sdm: Option<std::collections::HashMap<String, f64>>,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AttrType {
     String = 1,
     Double,
@@ -236,6 +244,7 @@ pub enum AttrType {
     StringDoubleMap,
 }
 
+#[derive(Debug, Default, Clone)]
 pub struct GetInstanceCertificateResult {
     pub certificate_path: String,
     pub private_key_path: String,

@@ -25,7 +25,9 @@ async fn main() {
         .lock()
         .await
         .process_ready(ProcessParameters {
-            on_start_game_session: Box::new(move |_game_session| {
+            on_start_game_session: Box::new(move |game_session| {
+                log::debug!("{:?}", game_session);
+
                 tokio_handle.spawn(async {
                     CLIENT
                         .lock()
@@ -35,7 +37,9 @@ async fn main() {
                         .expect("Cannot activate game session");
                 });
             }),
-            on_update_game_session: Box::new(|_update_game_session| ()),
+            on_update_game_session: Box::new(|update_game_session| {
+                log::debug!("{:?}", update_game_session)
+            }),
             on_process_terminate: Box::new(|| ()),
             on_health_check: Box::new(|| true),
             port: 14000,
