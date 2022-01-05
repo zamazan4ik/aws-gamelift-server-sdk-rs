@@ -39,7 +39,7 @@ async fn main() {
             on_update_game_session: Box::new(|update_game_session| {
                 Box::pin(async move { log::debug!("{:?}", update_game_session) })
             }),
-            on_process_terminate: Box::new(|| Box::pin(async { () })),
+            on_process_terminate: Box::new(|| Box::pin(async {})),
             on_health_check: Box::new(|| Box::pin(async { true })),
             port: 14000,
             log_parameters: LogParameters { log_paths: vec!["test".to_string()] },
