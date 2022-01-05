@@ -76,12 +76,11 @@ impl ServerStateInner {
         )
         .await;
 
-        let report_health_result;
-        if let Ok(health_check_result) = result {
-            report_health_result = self.http_client.report_health(health_check_result).await;
+        let report_health_result = if let Ok(health_check_result) = result {
+            self.http_client.report_health(health_check_result).await
         } else {
-            report_health_result = self.http_client.report_health(false).await;
-        }
+            self.http_client.report_health(false).await
+        };
 
         if let Err(error) = report_health_result {
             log::warn!("Could not send health starus: {:?}", error);
