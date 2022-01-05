@@ -20,28 +20,27 @@ async fn main() {
         log::error!("{:?}", error);
     }
 
-    let tokio_handle = tokio::runtime::Handle::current();
     if let Err(error) = CLIENT
         .lock()
         .await
         .process_ready(ProcessParameters {
             on_start_game_session: Box::new(move |game_session| {
-                log::debug!("{:?}", game_session);
+                Box::pin(async move {
+                    log::debug!("{:?}", game_session);
 
-                tokio_handle.spawn(async {
                     CLIENT
                         .lock()
                         .await
                         .activate_game_session()
                         .await
                         .expect("Cannot activate game session");
-                });
+                })
             }),
             on_update_game_session: Box::new(|update_game_session| {
-                log::debug!("{:?}", update_game_session)
+                Box::pin(async move { log::debug!("{:?}", update_game_session) })
             }),
-            on_process_terminate: Box::new(|| ()),
-            on_health_check: Box::new(|| true),
+            on_process_terminate: Box::new(|| Box::pin(async { () })),
+            on_health_check: Box::new(|| Box::pin(async { true })),
             port: 14000,
             log_parameters: LogParameters { log_paths: vec!["test".to_string()] },
         })

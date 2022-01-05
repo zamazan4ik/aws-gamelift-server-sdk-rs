@@ -56,18 +56,23 @@ impl WebSocketListener {
                             callback_handler
                                 .lock()
                                 .await
-                                .on_start_game_session(message.game_session);
+                                .on_start_game_session(message.game_session)
+                                .await;
                         }
                         ReceivedMessageType::UpdateGameSession(message) => {
                             log::info!("Received UpdateGameSession event");
 
                             let game_session = message.game_session.unwrap();
                             let update_reason = message.update_reason;
-                            callback_handler.lock().await.on_update_game_session(
-                                game_session,
-                                update_reason,
-                                message.backfill_ticket_id,
-                            );
+                            callback_handler
+                                .lock()
+                                .await
+                                .on_update_game_session(
+                                    game_session,
+                                    update_reason,
+                                    message.backfill_ticket_id,
+                                )
+                                .await;
                         }
                         ReceivedMessageType::TerminateProcess(message) => {
                             log::info!("Received TerminateProcess event");
@@ -75,7 +80,8 @@ impl WebSocketListener {
                             callback_handler
                                 .lock()
                                 .await
-                                .on_terminate_process(message.termination_time.unwrap());
+                                .on_terminate_process(message.termination_time.unwrap())
+                                .await;
                         }
                     }
                 } else if msg.is_close() {

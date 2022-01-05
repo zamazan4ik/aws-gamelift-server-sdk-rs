@@ -24,26 +24,26 @@ impl Default for ServerStateInner {
 }
 
 impl ServerStateInner {
-    pub fn on_start_game_session(&mut self, game_session: crate::entity::GameSession) {
+    pub async fn on_start_game_session(&mut self, game_session: crate::entity::GameSession) {
         if !self.is_process_ready {
             log::debug!("Got a game session on inactive process. Ignoring.");
             return;
         }
 
         self.game_session_id = Some(game_session.game_session_id.clone().unwrap());
-        (self.process_parameters.as_ref().unwrap().on_start_game_session)(game_session);
+        (self.process_parameters.as_ref().unwrap().on_start_game_session)(game_session).await;
     }
 
-    pub fn on_terminate_process(&mut self, termination_time: i64) {
+    pub async fn on_terminate_process(&mut self, termination_time: i64) {
         log::debug!(
             "ServerState got the terminateProcess signal. TerminateProcess: {}",
             termination_time
         );
         self.termination_time = Some(termination_time);
-        (self.process_parameters.as_ref().unwrap().on_process_terminate)();
+        (self.process_parameters.as_ref().unwrap().on_process_terminate)().await;
     }
 
-    pub fn on_update_game_session(
+    pub async fn on_update_game_session(
         &mut self,
         game_session: crate::entity::GameSession,
         update_reason: crate::entity::UpdateReason,
@@ -59,7 +59,8 @@ impl ServerStateInner {
                 update_reason,
                 backfill_ticket_id,
             },
-        );
+        )
+        .await;
     }
 
     pub async fn report_health(&self) {
@@ -72,7 +73,7 @@ impl ServerStateInner {
 
         let result = tokio::time::timeout(
             std::time::Duration::from_secs(HEALTHCHECK_TIMEOUT_SECONDS),
-            async { (self.process_parameters.as_ref().unwrap().on_health_check)() },
+            (self.process_parameters.as_ref().unwrap().on_health_check)(),
         )
         .await;
 
