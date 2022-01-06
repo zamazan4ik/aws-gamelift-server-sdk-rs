@@ -78,7 +78,7 @@ pub struct Player {
     pub latency_in_ms: Option<std::collections::HashMap<String, i32>>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, strum_macros::ToString)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, strum_macros::Display)]
 pub enum PlayerSessionCreationPolicy {
     NotSet,
     AcceptAll,
