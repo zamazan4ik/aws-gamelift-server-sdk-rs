@@ -1,9 +1,24 @@
-pub type OnStartGameSessionType =
-    dyn Fn(crate::entity::GameSession) + std::marker::Send + std::marker::Sync;
-pub type OnUpdateGameSessionType =
-    dyn Fn(crate::entity::UpdateGameSession) + std::marker::Send + std::marker::Sync;
-pub type OnProcessTerminateType = dyn Fn() + std::marker::Send + std::marker::Sync;
-pub type OnHealthCheckType = dyn Fn() -> bool + std::marker::Send + std::marker::Sync;
+pub type OnStartGameSessionOutputType =
+    std::pin::Pin<Box<dyn std::future::Future<Output = ()> + std::marker::Send>>;
+pub type OnStartGameSessionType = dyn Fn(crate::entity::GameSession) -> OnStartGameSessionOutputType
+    + std::marker::Send
+    + std::marker::Sync;
+
+pub type OnUpdateGameSessionOutputType =
+    std::pin::Pin<Box<dyn std::future::Future<Output = ()> + std::marker::Send>>;
+pub type OnUpdateGameSessionType = dyn Fn(crate::entity::UpdateGameSession) -> OnUpdateGameSessionOutputType
+    + std::marker::Send
+    + std::marker::Sync;
+
+pub type OnProcessTerminateOutputType =
+    std::pin::Pin<Box<dyn std::future::Future<Output = ()> + std::marker::Send>>;
+pub type OnProcessTerminateType =
+    dyn Fn() -> OnProcessTerminateOutputType + std::marker::Send + std::marker::Sync;
+
+pub type HealthCheckOutputType =
+    std::pin::Pin<Box<dyn std::future::Future<Output = bool> + std::marker::Send>>;
+pub type OnHealthCheckType =
+    dyn Fn() -> HealthCheckOutputType + std::marker::Send + std::marker::Sync;
 
 /// This data type contains the set of parameters sent to the GameLift service
 /// in a [ProcessReady](crate::api::Api::process_ready) call.
