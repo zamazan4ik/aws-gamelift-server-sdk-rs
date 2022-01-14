@@ -34,6 +34,8 @@ async fn main() {
                         .activate_game_session()
                         .await
                         .expect("Cannot activate game session");
+
+                    log::info!("Session active!");
                 })
             }),
             on_update_game_session: Box::new(|update_game_session| {

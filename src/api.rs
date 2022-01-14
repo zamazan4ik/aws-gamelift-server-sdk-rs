@@ -50,7 +50,7 @@ impl Api {
     /// game session and is now ready to receive player connections. This action
     /// should be called as part of the on_start_game_session() callback
     /// function, after all game session initialization has been completed.
-    pub async fn activate_game_session(&mut self) -> Result<(), GameLiftErrorType> {
+    pub async fn activate_game_session(&self) -> Result<(), GameLiftErrorType> {
         self.state.activate_game_session().await
     }
 
@@ -70,7 +70,7 @@ impl Api {
         note = "Instead, the server process should call process_ending() after a game session has \
                 ended"
     )]
-    pub async fn terminate_game_session(&mut self) -> Result<(), GameLiftErrorType> {
+    pub async fn terminate_game_session(&self) -> Result<(), GameLiftErrorType> {
         self.state.terminate_game_session().await
     }
 
@@ -79,7 +79,7 @@ impl Api {
     /// player sessions. (See also the update_game_session() action in the
     /// GameLift Service API Reference).
     pub async fn update_player_session_creation_policy(
-        &mut self,
+        &self,
         player_session_policy: crate::entity::PlayerSessionCreationPolicy,
     ) -> Result<(), GameLiftErrorType> {
         self.state.update_player_session_creation_policy(player_session_policy).await
@@ -88,7 +88,7 @@ impl Api {
     /// Retrieves the ID of the game session currently being hosted by the
     /// server process, if the server process is active.
     pub async fn get_game_session_id(
-        &mut self,
+        &self,
     ) -> Result<crate::entity::GameSessionId, crate::error::GameLiftErrorType> {
         self.state.get_game_session_id().await
     }
@@ -107,7 +107,7 @@ impl Api {
     /// not received an on_process_terminate() callback, an error message is
     /// returned. Learn more about shutting down a server process.
     pub async fn get_termination_time(
-        &mut self,
+        &self,
     ) -> Result<crate::entity::TerminationTimeType, crate::error::GameLiftErrorType> {
         self.state.get_termination_time().await
     }
@@ -119,7 +119,7 @@ impl Api {
     /// validated, GameLift changes the status of the player slot from RESERVED
     /// to ACTIVE.
     pub async fn accept_player_session(
-        &mut self,
+        &self,
         player_session_id: crate::entity::PlayerSessionId,
     ) -> Result<(), GameLiftErrorType> {
         self.state.accept_player_session(player_session_id).await
@@ -130,7 +130,7 @@ impl Api {
     /// GameLift changes the player slot to available, which allows it to be
     /// assigned to a new player.
     pub async fn remove_player_session(
-        &mut self,
+        &self,
         player_session_id: crate::entity::PlayerSessionId,
     ) -> Result<(), GameLiftErrorType> {
         self.state.remove_player_session(player_session_id).await
@@ -141,7 +141,7 @@ impl Api {
     /// session, for all player sessions in a game session, or for all player
     /// sessions associated with a single player ID.
     pub async fn describe_player_sessions(
-        &mut self,
+        &self,
         describe_player_sessions_request: crate::entity::DescribePlayerSessionsRequest,
     ) -> Result<DescribePlayerSessionsResult, GameLiftErrorType> {
         self.state.describe_player_sessions(describe_player_sessions_request).await
@@ -163,7 +163,7 @@ impl Api {
     /// [stop_match_backfill](crate::api::Api::stop_match_backfill) to cancel
     /// the original request.
     pub async fn start_match_backfill(
-        &mut self,
+        &self,
         request: crate::entity::StartMatchBackfillRequest,
     ) -> Result<StartMatchBackfillResult, GameLiftErrorType> {
         self.state.backfill_matchmaking(request).await
@@ -174,7 +174,7 @@ impl Api {
     /// the AWS SDK action StopMatchmaking(). Learn more about the FlexMatch
     /// backfill feature.
     pub async fn stop_match_backfill(
-        &mut self,
+        &self,
         request: crate::entity::StopMatchBackfillRequest,
     ) -> Result<(), GameLiftErrorType> {
         self.state.stop_matchmaking(request).await
