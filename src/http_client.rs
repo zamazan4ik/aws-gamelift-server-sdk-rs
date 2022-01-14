@@ -6,8 +6,8 @@ pub struct HttpClient {
     http_client: reqwest::Client,
 }
 
-impl HttpClient {
-    pub fn new() -> Self {
+impl Default for HttpClient {
+    fn default() -> Self {
         use reqwest::header;
         let mut headers = header::HeaderMap::new();
         headers.insert(header::ACCEPT, header::HeaderValue::from_static("application/json"));
@@ -26,7 +26,9 @@ impl HttpClient {
                 .expect("Cannot build HTTP client"),
         }
     }
+}
 
+impl HttpClient {
     async fn send<T>(&self, message: T) -> Result<Response, crate::error::GameLiftErrorType>
     where
         T: protobuf::Message,

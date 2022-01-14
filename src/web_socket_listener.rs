@@ -9,12 +9,12 @@ const FLAVOR: &str = "Rust";
 
 pub struct WebSocketListener {
     handle: Option<tokio::task::JoinHandle<()>>,
-    state: std::sync::Arc<tokio::sync::Mutex<crate::server_state::ServerStateInner>>,
+    state: std::sync::Arc<tokio::sync::RwLock<crate::server_state::ServerStateInner>>,
 }
 
 impl WebSocketListener {
     pub fn new(
-        state: std::sync::Arc<tokio::sync::Mutex<crate::server_state::ServerStateInner>>,
+        state: std::sync::Arc<tokio::sync::RwLock<crate::server_state::ServerStateInner>>,
     ) -> Self {
         Self { handle: None, state }
     }
@@ -54,7 +54,7 @@ impl WebSocketListener {
                         ReceivedMessageType::ActivateGameSession(message) => {
                             log::info!("Received ActivateGameSession event");
                             callback_handler
-                                .lock()
+                                .read()
                                 .await
                                 .on_start_game_session(message.game_session)
                                 .await;
@@ -65,7 +65,7 @@ impl WebSocketListener {
                             let game_session = message.game_session.unwrap();
                             let update_reason = message.update_reason;
                             callback_handler
-                                .lock()
+                                .read()
                                 .await
                                 .on_update_game_session(
                                     game_session,
@@ -78,7 +78,7 @@ impl WebSocketListener {
                             log::info!("Received TerminateProcess event");
 
                             callback_handler
-                                .lock()
+                                .read()
                                 .await
                                 .on_terminate_process(message.termination_time.unwrap())
                                 .await;

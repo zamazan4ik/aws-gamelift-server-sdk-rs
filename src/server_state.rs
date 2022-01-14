@@ -3,53 +3,60 @@ use tokio::task::JoinHandle;
 
 const HEALTHCHECK_TIMEOUT_SECONDS: u64 = 60;
 
-pub struct ServerStateInner {
-    process_parameters: Option<crate::process_parameters::ProcessParameters>,
+#[derive(Default)]
+struct SessionState {
     is_process_ready: bool,
     game_session_id: Option<crate::entity::GameSessionId>,
     termination_time: Option<crate::entity::TerminationTimeType>,
+}
+
+#[derive(Default)]
+pub struct ServerStateInner {
+    process_parameters: Option<crate::process_parameters::ProcessParameters>,
+    session_state: parking_lot::RwLock<SessionState>,
     http_client: crate::http_client::HttpClient,
 }
 
-impl Default for ServerStateInner {
-    fn default() -> Self {
-        Self {
-            process_parameters: None,
-            is_process_ready: false,
-            game_session_id: None,
-            termination_time: None,
-            http_client: crate::http_client::HttpClient::new(),
-        }
-    }
-}
-
 impl ServerStateInner {
-    pub async fn on_start_game_session(&mut self, game_session: crate::entity::GameSession) {
-        if !self.is_process_ready {
+    pub fn is_process_ready(&self) -> bool {
+        self.session_state.read().is_process_ready
+    }
+
+    pub fn get_game_session_id(&self) -> Option<crate::entity::GameSessionId> {
+        self.session_state.read().game_session_id.clone()
+    }
+
+    pub fn get_termination_time(&self) -> Option<crate::entity::TerminationTimeType> {
+        self.session_state.read().termination_time
+    }
+
+    pub async fn on_start_game_session(&self, game_session: crate::entity::GameSession) {
+        if !self.is_process_ready() {
             log::debug!("Got a game session on inactive process. Ignoring.");
             return;
         }
 
-        self.game_session_id = Some(game_session.game_session_id.clone().unwrap());
+        self.session_state.write().game_session_id =
+            Some(game_session.game_session_id.clone().unwrap());
         (self.process_parameters.as_ref().unwrap().on_start_game_session)(game_session).await;
     }
 
-    pub async fn on_terminate_process(&mut self, termination_time: i64) {
+    pub async fn on_terminate_process(&self, termination_time: i64) {
         log::debug!(
             "ServerState got the terminateProcess signal. TerminateProcess: {}",
             termination_time
         );
-        self.termination_time = Some(termination_time);
+        self.session_state.write().termination_time = Some(termination_time);
         (self.process_parameters.as_ref().unwrap().on_process_terminate)().await;
     }
 
     pub async fn on_update_game_session(
-        &mut self,
+        &self,
         game_session: crate::entity::GameSession,
         update_reason: crate::entity::UpdateReason,
         backfill_ticket_id: String,
     ) {
-        if !self.is_process_ready {
+        if !self.is_process_ready() {
             log::warn!("Got an updated game session on inactive process.");
             return;
         }
@@ -64,7 +71,7 @@ impl ServerStateInner {
     }
 
     pub async fn report_health(&self) {
-        if !self.is_process_ready {
+        if !self.is_process_ready() {
             log::debug!("Reporting Health on an inactive process. Ignoring.");
             return;
         }
@@ -90,7 +97,7 @@ impl ServerStateInner {
 }
 
 pub struct ServerState {
-    inner: std::sync::Arc<tokio::sync::Mutex<ServerStateInner>>,
+    inner: std::sync::Arc<tokio::sync::RwLock<ServerStateInner>>,
     websocket_listener: Option<crate::web_socket_listener::WebSocketListener>,
     health_report_task: Option<JoinHandle<()>>,
 }
@@ -98,7 +105,7 @@ pub struct ServerState {
 impl Default for ServerState {
     fn default() -> Self {
         Self {
-            inner: std::sync::Arc::new(tokio::sync::Mutex::new(ServerStateInner::default())),
+            inner: std::sync::Arc::new(tokio::sync::RwLock::new(ServerStateInner::default())),
             websocket_listener: None,
             health_report_task: None,
         }
@@ -113,66 +120,76 @@ impl ServerState {
         let port = process_parameters.port;
         let log_paths = process_parameters.log_parameters.log_paths.clone();
 
-        self.inner.lock().await.is_process_ready = true;
-        self.inner.lock().await.process_parameters = Some(process_parameters);
+        let result = {
+            let mut inner = self.inner.write().await;
 
-        let result = self.inner.lock().await.http_client.process_ready(port, log_paths).await;
+            inner.session_state.write().is_process_ready = true;
+            inner.process_parameters = Some(process_parameters);
+
+            inner.http_client.process_ready(port, log_paths).await
+        };
 
         self.start_health_check().await;
 
         result
     }
 
-    pub async fn process_ending(&mut self) -> Result<(), crate::error::GameLiftErrorType> {
-        self.inner.lock().await.is_process_ready = false;
-        self.inner.lock().await.http_client.process_ending().await
+    pub async fn process_ending(&self) -> Result<(), crate::error::GameLiftErrorType> {
+        let inner = self.inner.read().await;
+
+        inner.session_state.write().is_process_ready = false;
+        inner.http_client.process_ending().await
     }
 
-    pub async fn activate_game_session(&mut self) -> Result<(), GameLiftErrorType> {
-        let game_session_id = self.inner.lock().await.game_session_id.clone();
+    pub async fn activate_game_session(&self) -> Result<(), GameLiftErrorType> {
+        let inner = self.inner.read().await;
+
+        let game_session_id = inner.get_game_session_id();
         if let Some(game_session_id) = game_session_id {
-            self.inner.lock().await.http_client.activate_game_session(game_session_id).await
+            inner.http_client.activate_game_session(game_session_id).await
         } else {
             Err(crate::error::GameLiftErrorType::GameSessionIdNotSet)
         }
     }
 
-    pub async fn terminate_game_session(&mut self) -> Result<(), GameLiftErrorType> {
-        let game_session_id = self.inner.lock().await.game_session_id.clone();
+    pub async fn terminate_game_session(&self) -> Result<(), GameLiftErrorType> {
+        let inner = self.inner.read().await;
+
+        let game_session_id = inner.get_game_session_id();
         if let Some(game_session_id) = game_session_id {
-            self.inner.lock().await.http_client.terminate_game_session(game_session_id).await
+            inner.http_client.terminate_game_session(game_session_id).await
         } else {
             Err(crate::error::GameLiftErrorType::GameSessionIdNotSet)
         }
     }
 
     pub async fn get_game_session_id(
-        &mut self,
+        &self,
     ) -> Result<crate::entity::GameSessionId, crate::error::GameLiftErrorType> {
-        match self.inner.lock().await.game_session_id.as_ref() {
-            Some(game_session_id) => Ok(game_session_id.clone()),
+        match self.inner.read().await.get_game_session_id() {
+            Some(game_session_id) => Ok(game_session_id),
             None => Err(crate::error::GameLiftErrorType::GameSessionIdNotSet),
         }
     }
 
     pub async fn get_termination_time(
-        &mut self,
+        &self,
     ) -> Result<crate::entity::TerminationTimeType, crate::error::GameLiftErrorType> {
-        match self.inner.lock().await.termination_time {
+        match self.inner.read().await.get_termination_time() {
             Some(value) => Ok(value),
             None => Err(crate::error::GameLiftErrorType::TerminationTimeNotSet),
         }
     }
 
     pub async fn update_player_session_creation_policy(
-        &mut self,
+        &self,
         player_session_policy: crate::entity::PlayerSessionCreationPolicy,
     ) -> Result<(), GameLiftErrorType> {
-        let game_session_id = self.inner.lock().await.game_session_id.clone();
+        let inner = self.inner.read().await;
+
+        let game_session_id = inner.get_game_session_id();
         if let Some(game_session_id) = game_session_id {
-            self.inner
-                .lock()
-                .await
+            inner
                 .http_client
                 .update_player_session_creation_policy(game_session_id, player_session_policy)
                 .await
@@ -182,58 +199,52 @@ impl ServerState {
     }
 
     pub async fn accept_player_session(
-        &mut self,
+        &self,
         player_session_id: crate::entity::PlayerSessionId,
     ) -> Result<(), GameLiftErrorType> {
-        let game_session_id = self.inner.lock().await.game_session_id.clone();
+        let inner = self.inner.read().await;
+
+        let game_session_id = inner.get_game_session_id();
         if let Some(game_session_id) = game_session_id {
-            self.inner
-                .lock()
-                .await
-                .http_client
-                .accept_player_session(player_session_id, game_session_id)
-                .await
+            inner.http_client.accept_player_session(player_session_id, game_session_id).await
         } else {
             Err(crate::error::GameLiftErrorType::GameSessionIdNotSet)
         }
     }
 
     pub async fn remove_player_session(
-        &mut self,
+        &self,
         player_session_id: crate::entity::PlayerSessionId,
     ) -> Result<(), GameLiftErrorType> {
-        let game_session_id = self.inner.lock().await.game_session_id.clone();
+        let inner = self.inner.read().await;
+
+        let game_session_id = inner.get_game_session_id();
         if let Some(game_session_id) = game_session_id {
-            self.inner
-                .lock()
-                .await
-                .http_client
-                .remove_player_session(player_session_id, game_session_id)
-                .await
+            inner.http_client.remove_player_session(player_session_id, game_session_id).await
         } else {
             Err(crate::error::GameLiftErrorType::GameSessionIdNotSet)
         }
     }
 
     pub async fn describe_player_sessions(
-        &mut self,
+        &self,
         request: crate::entity::DescribePlayerSessionsRequest,
     ) -> Result<crate::entity::DescribePlayerSessionsResult, GameLiftErrorType> {
-        self.inner.lock().await.http_client.describe_player_sessions(request).await
+        self.inner.read().await.http_client.describe_player_sessions(request).await
     }
 
     pub async fn backfill_matchmaking(
-        &mut self,
+        &self,
         request: crate::entity::StartMatchBackfillRequest,
     ) -> Result<crate::entity::StartMatchBackfillResult, GameLiftErrorType> {
-        self.inner.lock().await.http_client.backfill_matchmaking(request).await
+        self.inner.read().await.http_client.backfill_matchmaking(request).await
     }
 
     pub async fn stop_matchmaking(
-        &mut self,
+        &self,
         request: crate::entity::StopMatchBackfillRequest,
     ) -> Result<(), GameLiftErrorType> {
-        self.inner.lock().await.http_client.stop_matchmaking(request).await
+        self.inner.read().await.http_client.stop_matchmaking(request).await
     }
 
     async fn start_health_check(&mut self) {
@@ -241,9 +252,9 @@ impl ServerState {
 
         let inner_state = self.inner.clone();
         let report_health_task = async move {
-            while inner_state.lock().await.is_process_ready {
+            while inner_state.read().await.is_process_ready() {
                 {
-                    inner_state.lock().await.report_health().await;
+                    inner_state.read().await.report_health().await;
                 }
 
                 tokio::time::sleep(std::time::Duration::from_secs(HEALTHCHECK_TIMEOUT_SECONDS))
@@ -263,11 +274,11 @@ impl ServerState {
     pub async fn get_instance_certificate(
         &self,
     ) -> Result<GetInstanceCertificateResult, GameLiftErrorType> {
-        self.inner.lock().await.http_client.get_instance_certificate().await
+        self.inner.read().await.http_client.get_instance_certificate().await
     }
 
     pub async fn shutdown(&self) -> bool {
-        self.inner.lock().await.is_process_ready = false;
+        self.inner.read().await.session_state.write().is_process_ready = false;
         if let Some(health_report_task) = &self.health_report_task {
             health_report_task.abort();
         }
