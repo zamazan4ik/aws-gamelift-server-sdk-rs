@@ -1,6 +1,6 @@
 [package]
 name = "aws-gamelift-server-sdk-rs"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 description = "AWS GameLift Server SDK for Rust"
 repository = "https://github.com/ZaMaZaN4iK/aws-gamelift-server-sdk-rs"
@@ -21,9 +21,9 @@ futures-util = { version = "0.3.19", features = ["sink"] }
 log = "0.4.14"
 parking_lot = "0.11.2"
 protobuf = { version = "2.25.2", features = ["with-serde"] }
-reqwest = { version = "0.11.8", default-features = false }
+reqwest = { version = "0.11.9", default-features = false }
 serde = "1.0.133"
-serde_json = "1.0.74"
+serde_json = "1.0.75"
 strum = "0.23.0"
 strum_macros = "0.23.1"
 thiserror = "1.0.30"
