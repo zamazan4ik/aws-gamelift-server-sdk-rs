@@ -1,47 +1,48 @@
 use futures_util::StreamExt;
 
-const HOSTNAME: &str = "127.0.0.1";
-const PORT: i32 = 5759;
 const PID_KEY: &str = "pID";
 const SDK_VERSION_KEY: &str = "sdkVersion";
 const FLAVOR_KEY: &str = "sdkLanguage";
 const FLAVOR: &str = "Rust";
+const AUTH_TOKEN_KEY: &str = "Authorization";
+const COMPUTE_ID_KEY: &str = "ComputeId";
+const FLEET_ID_KEY: &str = "FleetId";
 
 pub struct WebSocketListener {
-    handle: Option<tokio::task::JoinHandle<()>>,
-    state: std::sync::Arc<tokio::sync::RwLock<crate::server_state::ServerStateInner>>,
+    handle: tokio::task::JoinHandle<()>,
+}
+
+impl Drop for WebSocketListener {
+    fn drop(&mut self) {
+        self.handle.abort();
+    }
 }
 
 impl WebSocketListener {
-    pub fn new(
+    pub async fn connect(
         state: std::sync::Arc<tokio::sync::RwLock<crate::server_state::ServerStateInner>>,
-    ) -> Self {
-        Self { handle: None, state }
-    }
-
-    pub fn disconnect(&self) -> bool {
-        if let Some(handle) = &self.handle {
-            handle.abort();
-            return true;
+        server_parameters: crate::server_parameters::ServerParameters,
+    ) -> Result<Self, crate::error::GameLiftErrorType> {
+        match Self::perform_connect(state, server_parameters).await {
+            Ok(handle) => Ok(Self { handle }),
+            Err(error) => {
+                println!("{}", error);
+                Err(crate::error::GameLiftErrorType::LocalConnectionFailed)
+            }
         }
-
-        false
     }
 
-    pub async fn connect(&mut self) -> Result<(), crate::error::GameLiftErrorType> {
-        self.perform_connect().await.map_err(|error| {
-            println!("{:?}", error);
-            crate::error::GameLiftErrorType::LocalConnectionFailed
-        })
-    }
-
-    async fn perform_connect(&mut self) -> Result<(), tokio_tungstenite::tungstenite::Error> {
-        let connection_string = Self::create_uri();
+    async fn perform_connect(
+        callback_handler: std::sync::Arc<
+            tokio::sync::RwLock<crate::server_state::ServerStateInner>,
+        >,
+        server_parameters: crate::server_parameters::ServerParameters,
+    ) -> Result<tokio::task::JoinHandle<()>, tokio_tungstenite::tungstenite::Error> {
+        let connection_string = Self::create_uri(server_parameters);
         log::debug!("AWS GameLift Server WebSocket connection string: {}", connection_string);
         let (mut ws_stream, _) = tokio_tungstenite::connect_async(connection_string).await?;
 
-        let callback_handler = self.state.clone();
-        self.handle = Some(tokio::spawn(async move {
+        Ok(tokio::spawn(async move {
             while let Some(msg) = ws_stream.next().await {
                 let msg = msg.unwrap();
                 if msg.is_text() {
@@ -88,23 +89,33 @@ impl WebSocketListener {
                     log::debug!("Socket disconnected. Message: {}", msg);
                 }
             }
-        }));
-
-        Ok(())
+        }))
     }
 
-    fn create_uri() -> String {
+    fn create_uri(server_parameters: crate::server_parameters::ServerParameters) -> String {
         let query_string = format!(
-            "{}={}&{}={}&{}={}",
+            "{}={}&{}={}&{}={}&{}={}&{}={}&{}={}",
             PID_KEY,
-            std::process::id(),
+            server_parameters.process_id,
             SDK_VERSION_KEY,
-            crate::api::SDK_VERSION,
+            crate::api::Api::get_sdk_version(),
             FLAVOR_KEY,
-            FLAVOR
+            FLAVOR,
+            AUTH_TOKEN_KEY,
+            server_parameters.auth_token,
+            COMPUTE_ID_KEY,
+            server_parameters.host_id,
+            FLEET_ID_KEY,
+            server_parameters.fleet_id,
         );
 
-        format!("ws://{}:{}?{}", HOSTNAME, PORT, query_string)
+        // Path to resource must end with "/"
+        let web_socket_url = server_parameters.web_socket_url;
+        if web_socket_url.ends_with('/') {
+            format!("{}?{}", web_socket_url, query_string)
+        } else {
+            format!("{}/?{}", web_socket_url, query_string)
+        }
     }
 }
 

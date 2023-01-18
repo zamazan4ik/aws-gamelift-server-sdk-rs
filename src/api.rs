@@ -5,7 +5,7 @@ use crate::{
     error::GameLiftErrorType,
 };
 
-pub const SDK_VERSION: &str = "4.0.2";
+pub const SDK_VERSION: &str = "5.0.0";
 
 #[derive(Default)]
 pub struct Api {
@@ -21,8 +21,11 @@ impl Api {
 
     /// Initializes the GameLift SDK. This method should be called on launch,
     /// before any other GameLift-related initialization occurs.
-    pub async fn init_sdk(&mut self) -> Result<(), GameLiftErrorType> {
-        self.state.initialize_networking().await
+    pub async fn init_sdk(
+        &mut self,
+        server_parameters: crate::server_parameters::ServerParameters,
+    ) -> Result<(), GameLiftErrorType> {
+        self.state.initialize_networking(server_parameters).await
     }
 
     /// Notifies the GameLift service that the server process is ready to host
@@ -191,7 +194,7 @@ impl Api {
         self.state.get_instance_certificate().await
     }
 
-    pub async fn destroy(&self) -> bool {
+    pub async fn destroy(&mut self) -> bool {
         self.state.shutdown().await
     }
 }

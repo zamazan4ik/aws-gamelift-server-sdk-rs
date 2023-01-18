@@ -1,5 +1,6 @@
 use aws_gamelift_server_sdk_rs::{
     log_parameters::LogParameters, process_parameters::ProcessParameters,
+    server_parameters::ServerParameters,
 };
 
 static CLIENT: once_cell::sync::Lazy<tokio::sync::Mutex<aws_gamelift_server_sdk_rs::api::Api>> =
@@ -16,7 +17,8 @@ async fn main() {
         aws_gamelift_server_sdk_rs::api::Api::get_sdk_version()
     );
 
-    if let Err(error) = CLIENT.lock().await.init_sdk().await {
+    let server_parameters = ServerParameters::default();
+    if let Err(error) = CLIENT.lock().await.init_sdk(server_parameters).await {
         log::error!("{:?}", error);
     }
 

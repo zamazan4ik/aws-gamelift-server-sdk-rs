@@ -10,5 +10,6 @@ pub mod log_parameters;
 mod mapper;
 pub mod process_parameters;
 pub mod protos;
+pub mod server_parameters;
 pub mod server_state;
-mod web_socket_listener;
+pub mod web_socket_listener;

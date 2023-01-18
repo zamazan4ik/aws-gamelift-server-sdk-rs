@@ -1,6 +1,12 @@
 use crate::{entity::GetInstanceCertificateResult, error::GameLiftErrorType};
 use tokio::task::JoinHandle;
 
+const ENVIRONMENT_VARIABLE_WEBSOCKET_URL: &str = "GAMELIFT_SDK_WEBSOCKET_URL";
+const ENVIRONMENT_VARIABLE_PROCESS_ID: &str = "GAMELIFT_SDK_PROCESS_ID";
+const ENVIRONMENT_VARIABLE_HOST_ID: &str = "GAMELIFT_SDK_HOST_ID";
+const ENVIRONMENT_VARIABLE_FLEET_ID: &str = "GAMELIFT_SDK_FLEET_ID";
+const ENVIRONMENT_VARIABLE_AUTH_TOKEN: &str = "GAMELIFT_SDK_AUTH_TOKEN";
+
 const HEALTHCHECK_TIMEOUT_SECONDS: u64 = 60;
 
 #[derive(Default)]
@@ -100,6 +106,9 @@ pub struct ServerState {
     inner: std::sync::Arc<tokio::sync::RwLock<ServerStateInner>>,
     websocket_listener: Option<crate::web_socket_listener::WebSocketListener>,
     health_report_task: Option<JoinHandle<()>>,
+    fleet_id: String,
+    host_id: String,
+    process_id: String,
 }
 
 impl Default for ServerState {
@@ -108,6 +117,9 @@ impl Default for ServerState {
             inner: std::sync::Arc::new(tokio::sync::RwLock::new(ServerStateInner::default())),
             websocket_listener: None,
             health_report_task: None,
+            fleet_id: String::default(),
+            host_id: String::default(),
+            process_id: String::default(),
         }
     }
 }
@@ -265,10 +277,43 @@ impl ServerState {
         self.health_report_task = Some(tokio::spawn(report_health_task));
     }
 
-    pub async fn initialize_networking(&mut self) -> Result<(), crate::error::GameLiftErrorType> {
-        self.websocket_listener =
-            Some(crate::web_socket_listener::WebSocketListener::new(self.inner.clone()));
-        self.websocket_listener.as_mut().unwrap().connect().await
+    pub async fn initialize_networking(
+        &mut self,
+        server_parameters: crate::server_parameters::ServerParameters,
+    ) -> Result<(), crate::error::GameLiftErrorType> {
+        let web_socket_url = std::env::var(ENVIRONMENT_VARIABLE_WEBSOCKET_URL)
+            .unwrap_or(server_parameters.web_socket_url);
+        self.process_id =
+            std::env::var(ENVIRONMENT_VARIABLE_PROCESS_ID).unwrap_or(server_parameters.process_id);
+        self.host_id =
+            std::env::var(ENVIRONMENT_VARIABLE_HOST_ID).unwrap_or(server_parameters.host_id);
+        self.fleet_id =
+            std::env::var(ENVIRONMENT_VARIABLE_FLEET_ID).unwrap_or(server_parameters.fleet_id);
+        let auth_token =
+            std::env::var(ENVIRONMENT_VARIABLE_AUTH_TOKEN).unwrap_or(server_parameters.auth_token);
+
+        self.establish_networking(web_socket_url, auth_token).await
+    }
+
+    async fn establish_networking(
+        &mut self,
+        web_socket_url: impl Into<String>,
+        auth_token: impl Into<String>,
+    ) -> Result<(), crate::error::GameLiftErrorType> {
+        let server_parameters = crate::server_parameters::ServerParameters::new(
+            web_socket_url,
+            self.process_id.to_owned(),
+            self.host_id.to_owned(),
+            self.fleet_id.to_owned(),
+            auth_token,
+        );
+        let websocket_listener = crate::web_socket_listener::WebSocketListener::connect(
+            self.inner.clone(),
+            server_parameters,
+        )
+        .await?;
+        self.websocket_listener = Some(websocket_listener);
+        Ok(())
     }
 
     pub async fn get_instance_certificate(
@@ -277,11 +322,11 @@ impl ServerState {
         self.inner.read().await.http_client.get_instance_certificate().await
     }
 
-    pub async fn shutdown(&self) -> bool {
+    pub async fn shutdown(&mut self) -> bool {
         self.inner.read().await.session_state.write().is_process_ready = false;
         if let Some(health_report_task) = &self.health_report_task {
             health_report_task.abort();
         }
-        self.websocket_listener.as_ref().unwrap().disconnect()
+        std::mem::replace(&mut self.websocket_listener, None).is_some()
     }
 }

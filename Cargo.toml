@@ -28,7 +28,7 @@ strum = "0.23.0"
 strum_macros = "0.23.1"
 thiserror = "1.0.30"
 tokio = { version = "1.15.0", features = ["macros", "net", "rt-multi-thread", "time"] }
-tokio-tungstenite = "0.16.1"
+tokio-tungstenite = { version = "0.18.0", features = ["rustls-tls-native-roots"] }
 
 [build-dependencies]
 protobuf-codegen-pure = "2.25.2"
