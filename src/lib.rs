@@ -8,6 +8,7 @@ pub mod error;
 mod http_client;
 pub mod log_parameters;
 mod mapper;
+pub mod model;
 pub mod process_parameters;
 pub mod protos;
 pub mod server_parameters;

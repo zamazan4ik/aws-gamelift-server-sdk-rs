@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 #[derive(Debug, Default, Clone, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GameProperty {
@@ -28,6 +30,23 @@ pub struct GameSession {
     pub matchmaker_data: Option<String>,
     pub game_properties: Option<Vec<GameProperty>>,
     pub dns_name: Option<String>,
+}
+
+impl From<crate::model::message::CreateGameSessionMessage> for GameSession {
+    fn from(value: crate::model::message::CreateGameSessionMessage) -> Self {
+        Self {
+            game_session_id: Some(value.game_session_id),
+            name: Some(value.name),
+            fleet_id: Some(value.fleet_id),
+            max_players: value.maximum_player_session_count,
+            port: value.port as i32,
+            ip_address: Some(value.ip_address),
+            game_session_data: Some(value.game_session_data),
+            matchmaker_data: Some(value.matchmaker_data),
+            game_properties: None,
+            dns_name: Some(value.dns_name),
+        }
+    }
 }
 
 #[derive(Debug, Default, Clone, serde::Deserialize)]
@@ -64,13 +83,20 @@ pub enum UpdateReason {
     Unknown,
 }
 
+impl Default for UpdateReason {
+    fn default() -> Self {
+        Self::Unknown
+    }
+}
+
 #[derive(Debug, Default, Clone, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TerminateProcess {
     pub termination_time: Option<i64>,
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
 pub struct Player {
     pub player_id: Option<PlayerId>,
     pub player_attributes: Option<std::collections::HashMap<String, AttributeValue>>,
@@ -148,7 +174,8 @@ impl Default for DescribePlayerSessionsResult {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
 pub struct PlayerSession {
     pub player_id: Option<PlayerId>,
     pub player_session_id: Option<PlayerSessionId>,
@@ -163,7 +190,7 @@ pub struct PlayerSession {
     pub dns_name: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, strum_macros::EnumString)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, strum_macros::EnumString, Serialize, Deserialize)]
 pub enum PlayerSessionStatus {
     NotSet,
     Reserved,
@@ -227,7 +254,8 @@ pub struct StopMatchBackfillRequest {
     pub matchmaking_configuration_arn: Option<MatchmakingConfigurationArn>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
 pub struct AttributeValue {
     pub attr_type: AttrType,
     pub s: Option<String>,
@@ -236,7 +264,7 @@ pub struct AttributeValue {
     pub sdm: Option<std::collections::HashMap<String, f64>>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AttrType {
     String = 1,
     Double,
