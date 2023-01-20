@@ -20,7 +20,7 @@ impl Drop for WebSocketListener {
 
 impl WebSocketListener {
     pub async fn connect(
-        state: std::sync::Arc<tokio::sync::RwLock<crate::server_state::ServerStateInner>>,
+        state: std::sync::Arc<crate::server_state::ServerStateInner>,
         server_parameters: crate::server_parameters::ServerParameters,
     ) -> Result<Self, crate::error::GameLiftErrorType> {
         match Self::perform_connect(state, server_parameters).await {
@@ -33,9 +33,7 @@ impl WebSocketListener {
     }
 
     async fn perform_connect(
-        callback_handler: std::sync::Arc<
-            tokio::sync::RwLock<crate::server_state::ServerStateInner>,
-        >,
+        callback_handler: std::sync::Arc<crate::server_state::ServerStateInner>,
         server_parameters: crate::server_parameters::ServerParameters,
     ) -> Result<tokio::task::JoinHandle<()>, tokio_tungstenite::tungstenite::Error> {
         let connection_string = Self::create_uri(server_parameters);
@@ -54,11 +52,7 @@ impl WebSocketListener {
                     match message_type {
                         ReceivedMessageType::ActivateGameSession(message) => {
                             log::info!("Received ActivateGameSession event");
-                            callback_handler
-                                .read()
-                                .await
-                                .on_start_game_session(message.game_session)
-                                .await;
+                            callback_handler.on_start_game_session(message.game_session).await;
                         }
                         ReceivedMessageType::UpdateGameSession(message) => {
                             log::info!("Received UpdateGameSession event");
@@ -66,8 +60,6 @@ impl WebSocketListener {
                             let game_session = message.game_session.unwrap();
                             let update_reason = message.update_reason;
                             callback_handler
-                                .read()
-                                .await
                                 .on_update_game_session(
                                     game_session,
                                     update_reason,
@@ -79,8 +71,6 @@ impl WebSocketListener {
                             log::info!("Received TerminateProcess event");
 
                             callback_handler
-                                .read()
-                                .await
                                 .on_terminate_process(message.termination_time.unwrap())
                                 .await;
                         }
