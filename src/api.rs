@@ -1,13 +1,10 @@
 use crate::{
-    entity::{
-        DescribePlayerSessionsResult, GetInstanceCertificateResult, StartMatchBackfillResult,
-    },
     error::GameLiftErrorType,
+    model::{request, responce_result},
 };
 
-pub const SDK_VERSION: &str = "5.0.0";
+const SDK_VERSION: &str = "5.0.0";
 
-#[derive(Default)]
 pub struct Api {
     state: crate::server_state::ServerState,
 }
@@ -22,10 +19,11 @@ impl Api {
     /// Initializes the GameLift SDK. This method should be called on launch,
     /// before any other GameLift-related initialization occurs.
     pub async fn init_sdk(
-        &mut self,
         server_parameters: crate::server_parameters::ServerParameters,
-    ) -> Result<(), GameLiftErrorType> {
-        self.state.initialize_networking(server_parameters).await
+    ) -> Result<Self, GameLiftErrorType> {
+        let state =
+            crate::server_state::ServerState::initialize_networking(server_parameters).await?;
+        Ok(Self { state })
     }
 
     /// Notifies the GameLift service that the server process is ready to host
@@ -45,7 +43,7 @@ impl Api {
     /// shutting down all active game sessions. This method should exit with an
     /// exit code of 0; a non-zero exit code results in an event message that
     /// the process did not exit cleanly.
-    pub async fn process_ending(&mut self) -> Result<(), GameLiftErrorType> {
+    pub async fn process_ending(&self) -> Result<(), GameLiftErrorType> {
         self.state.process_ending().await
     }
 
@@ -55,26 +53,6 @@ impl Api {
     /// function, after all game session initialization has been completed.
     pub async fn activate_game_session(&self) -> Result<(), GameLiftErrorType> {
         self.state.activate_game_session().await
-    }
-
-    /// Notifies the GameLift service that the server process has ended the
-    /// current game session. This action is called when the server process will
-    /// remain active and ready to host a new game session. It should be called
-    /// only after your game session termination procedure is complete, because
-    /// it signals to GameLift that the server process is immediately available
-    /// to host a new game session.
-    ///
-    /// This action is not called if the server process will be shut down after
-    /// the game session stops. Instead, call
-    /// [process_ending](crate::api::Api::process_ending) to signal that
-    /// both the game session and the server process are ending.
-    #[deprecated(
-        since = "4.0.1",
-        note = "Instead, the server process should call process_ending() after a game session has \
-                ended"
-    )]
-    pub async fn terminate_game_session(&self) -> Result<(), GameLiftErrorType> {
-        self.state.terminate_game_session().await
     }
 
     /// Updates the current game session's ability to accept new player
@@ -145,8 +123,8 @@ impl Api {
     /// sessions associated with a single player ID.
     pub async fn describe_player_sessions(
         &self,
-        describe_player_sessions_request: crate::entity::DescribePlayerSessionsRequest,
-    ) -> Result<DescribePlayerSessionsResult, GameLiftErrorType> {
+        describe_player_sessions_request: request::DescribePlayerSessionsRequest,
+    ) -> Result<responce_result::DescribePlayerSessionsResult, GameLiftErrorType> {
         self.state.describe_player_sessions(describe_player_sessions_request).await
     }
 
@@ -167,8 +145,8 @@ impl Api {
     /// the original request.
     pub async fn start_match_backfill(
         &self,
-        request: crate::entity::StartMatchBackfillRequest,
-    ) -> Result<StartMatchBackfillResult, GameLiftErrorType> {
+        request: request::StartMatchBackfillRequest,
+    ) -> Result<responce_result::StartMatchBackfillResult, GameLiftErrorType> {
         self.state.backfill_matchmaking(request).await
     }
 
@@ -178,7 +156,7 @@ impl Api {
     /// backfill feature.
     pub async fn stop_match_backfill(
         &self,
-        request: crate::entity::StopMatchBackfillRequest,
+        request: request::StopMatchBackfillRequest,
     ) -> Result<(), GameLiftErrorType> {
         self.state.stop_matchmaking(request).await
     }
@@ -190,11 +168,7 @@ impl Api {
     /// with a game client and to encrypt client/server communication.
     pub async fn get_instance_certificate(
         &self,
-    ) -> Result<GetInstanceCertificateResult, GameLiftErrorType> {
+    ) -> Result<responce_result::GetComputeCertificateResult, GameLiftErrorType> {
         self.state.get_instance_certificate().await
-    }
-
-    pub async fn destroy(&mut self) -> bool {
-        self.state.shutdown().await
     }
 }

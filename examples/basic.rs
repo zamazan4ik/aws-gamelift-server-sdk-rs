@@ -3,11 +3,6 @@ use aws_gamelift_server_sdk_rs::{
     server_parameters::ServerParameters,
 };
 
-static CLIENT: once_cell::sync::Lazy<tokio::sync::Mutex<aws_gamelift_server_sdk_rs::api::Api>> =
-    once_cell::sync::Lazy::new(|| {
-        tokio::sync::Mutex::new(aws_gamelift_server_sdk_rs::api::Api::default())
-    });
-
 #[tokio::main]
 async fn main() {
     env_logger::init();
@@ -18,28 +13,32 @@ async fn main() {
     );
 
     let server_parameters = ServerParameters::default();
-    if let Err(error) = CLIENT.lock().await.init_sdk(server_parameters).await {
-        log::error!("{:?}", error);
-    }
+    let api = match aws_gamelift_server_sdk_rs::api::Api::init_sdk(server_parameters).await {
+        Ok(api) => std::sync::Arc::new(tokio::sync::Mutex::new(api)),
+        Err(error) => {
+            log::error!("{:?}", error);
+            return;
+        }
+    };
 
-    if let Err(error) = CLIENT
+    if let Err(error) = api
         .lock()
         .await
         .process_ready(ProcessParameters {
-            on_start_game_session: Box::new(move |game_session| {
-                Box::pin(async move {
-                    log::debug!("{:?}", game_session);
+            on_start_game_session: {
+                let api = api.clone();
+                Box::new(move |game_session| {
+                    let api = api.clone();
+                    Box::pin(async move {
+                        log::debug!("{:?}", game_session);
 
-                    CLIENT
-                        .lock()
-                        .await
-                        .activate_game_session()
-                        .await
-                        .expect("Cannot activate game session");
+                        let lock = api.lock().await;
+                        lock.activate_game_session().await.expect("Cannot activate game session");
 
-                    log::info!("Session active!");
+                        log::info!("Session active!");
+                    })
                 })
-            }),
+            },
             on_update_game_session: Box::new(|update_game_session| {
                 Box::pin(async move { log::debug!("{:?}", update_game_session) })
             }),
