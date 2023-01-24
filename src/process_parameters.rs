@@ -1,12 +1,12 @@
 pub type OnStartGameSessionOutputType =
     std::pin::Pin<Box<dyn std::future::Future<Output = ()> + std::marker::Send>>;
-pub type OnStartGameSessionType = dyn Fn(crate::entity::GameSession) -> OnStartGameSessionOutputType
+pub type OnStartGameSessionType = dyn Fn(crate::model::GameSession) -> OnStartGameSessionOutputType
     + std::marker::Send
     + std::marker::Sync;
 
 pub type OnUpdateGameSessionOutputType =
     std::pin::Pin<Box<dyn std::future::Future<Output = ()> + std::marker::Send>>;
-pub type OnUpdateGameSessionType = dyn Fn(crate::entity::UpdateGameSession) -> OnUpdateGameSessionOutputType
+pub type OnUpdateGameSessionType = dyn Fn(crate::model::UpdateGameSession) -> OnUpdateGameSessionOutputType
     + std::marker::Send
     + std::marker::Sync;
 
@@ -54,7 +54,7 @@ pub struct ProcessParameters {
     /// fleet deploying this game server build. This port number is included in
     /// game session and player session objects, which game sessions use when
     /// connecting to a server process.
-    pub port: i32,
+    pub port: u16,
 
     /// Object with a list of directory paths to game session log files.
     pub log_parameters: crate::log_parameters::LogParameters,

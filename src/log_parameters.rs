@@ -12,3 +12,10 @@ pub struct LogParameters {
     /// instance) or /local/game/MyGame/sessionLogs (on a Linux instance).
     pub log_paths: Vec<String>,
 }
+
+impl LogParameters {
+    pub fn new(log_paths: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        let log_paths = log_paths.into_iter().map(|v| v.into());
+        Self { log_paths: Vec::from_iter(log_paths) }
+    }
+}

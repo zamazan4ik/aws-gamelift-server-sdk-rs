@@ -3,16 +3,15 @@ use std::{
         atomic::{AtomicBool, Ordering},
         Arc,
     },
-    time::Duration,
+    time::{Duration, SystemTime},
 };
 
 use crate::{
     error::GameLiftErrorType,
-    model::{request, responce_result},
+    model::{self, request, responce_result},
     process_parameters::ProcessParameters,
     server_parameters::ServerParameters,
-    web_socket_listener::GameLiftEventInner,
-    web_socket_listener::WebSocketListener,
+    web_socket_listener::{GameLiftEventInner, WebSocketListener},
 };
 use tokio::sync::mpsc;
 
@@ -30,8 +29,8 @@ const SDK_LANGUAGE: &str = "Rust";
 
 struct ServerStateInner {
     is_process_ready: AtomicBool,
-    game_session_id: parking_lot::Mutex<Option<crate::entity::GameSessionId>>,
-    termination_time: parking_lot::Mutex<Option<crate::entity::TerminationTimeType>>,
+    game_session_id: parking_lot::Mutex<Option<String>>,
+    termination_time: parking_lot::Mutex<Option<SystemTime>>,
     websocket_listener: tokio::sync::RwLock<WebSocketListener>,
     fleet_id: String,
     host_id: String,
@@ -61,11 +60,11 @@ impl ServerStateInner {
         self.is_process_ready.store(value, Ordering::Relaxed);
     }
 
-    fn get_game_session_id(&self) -> Option<crate::entity::GameSessionId> {
+    fn get_game_session_id(&self) -> Option<String> {
         self.game_session_id.lock().clone()
     }
 
-    fn get_termination_time(&self) -> Option<crate::entity::TerminationTimeType> {
+    fn get_termination_time(&self) -> Option<SystemTime> {
         *self.termination_time.lock()
     }
 
@@ -90,16 +89,10 @@ impl ServerStateInner {
 
             match event {
                 GameLiftEventInner::OnStartGameSession(msg) => {
-                    self.on_start_game_session(&process_parameters, msg.into()).await;
+                    self.on_start_game_session(&process_parameters, msg).await;
                 }
                 GameLiftEventInner::OnUpdateGameSession(msg) => {
-                    self.on_update_game_session(
-                        &process_parameters,
-                        msg.game_session.into(),
-                        msg.update_reason,
-                        msg.backfill_ticket_id,
-                    )
-                    .await;
+                    self.on_update_game_session(&process_parameters, msg).await;
                 }
                 GameLiftEventInner::OnTerminateProcess(msg) => {
                     self.on_terminate_process(&process_parameters, msg.termination_time).await;
@@ -135,34 +128,34 @@ impl ServerStateInner {
                 }
             }
         }
-        
+
         log::debug!("Health check and event listening ended.");
     }
 
     async fn on_start_game_session(
         &self,
         process_parameters: &ProcessParameters,
-        mut game_session: crate::entity::GameSession,
+        mut game_session: model::GameSession,
     ) {
         // Inject data that already exists on the server
-        game_session.fleet_id = Some(self.fleet_id.clone());
+        game_session.fleet_id = self.fleet_id.clone();
 
         if !self.is_process_ready() {
             log::debug!("Got a game session on inactive process. Ignoring.");
             return;
         }
 
-        *self.game_session_id.lock() = Some(game_session.game_session_id.clone().unwrap());
+        *self.game_session_id.lock() = Some(game_session.game_session_id.clone());
         (process_parameters.on_start_game_session)(game_session).await;
     }
 
     async fn on_terminate_process(
         &self,
         process_parameters: &ProcessParameters,
-        termination_time: i64,
+        termination_time: SystemTime,
     ) {
         log::debug!(
-            "ServerState got the terminateProcess signal. TerminateProcess: {}",
+            "ServerState got the terminateProcess signal. TerminateProcess: {:?}",
             termination_time
         );
 
@@ -173,21 +166,14 @@ impl ServerStateInner {
     async fn on_update_game_session(
         &self,
         process_parameters: &ProcessParameters,
-        game_session: crate::entity::GameSession,
-        update_reason: crate::entity::UpdateReason,
-        backfill_ticket_id: String,
+        update_game_session: model::UpdateGameSession,
     ) {
         if !self.is_process_ready() {
             log::warn!("Got an updated game session on inactive process.");
             return;
         }
 
-        (process_parameters.on_update_game_session)(crate::entity::UpdateGameSession {
-            game_session: Some(game_session),
-            update_reason,
-            backfill_ticket_id,
-        })
-        .await;
+        (process_parameters.on_update_game_session)(update_game_session).await;
     }
 
     async fn report_health(&self, process_parameters: &ProcessParameters) {
@@ -215,9 +201,9 @@ impl ServerStateInner {
     pub async fn request<T>(
         &self,
         request: T,
-    ) -> Result<<T as crate::model::RequestContent>::Response, crate::error::GameLiftErrorType>
+    ) -> Result<<T as model::protocol::RequestContent>::Response, GameLiftErrorType>
     where
-        T: crate::model::RequestContent,
+        T: model::protocol::RequestContent,
     {
         let lock = self.websocket_listener.read().await;
         lock.request(request).await
@@ -245,7 +231,7 @@ impl ServerState {
         let msg = request::ActivateServerProcessRequest {
             sdk_version: crate::api::Api::get_sdk_version().to_owned(),
             sdk_language: SDK_LANGUAGE.to_owned(),
-            port: process_parameters.port as u16,
+            port: process_parameters.port,
             log_paths: process_parameters.log_parameters.log_paths.clone(),
         };
         let result = self.inner.request(msg).await;
@@ -255,7 +241,7 @@ impl ServerState {
         result
     }
 
-    pub async fn process_ending(&self) -> Result<(), crate::error::GameLiftErrorType> {
+    pub async fn process_ending(&self) -> Result<(), GameLiftErrorType> {
         self.inner.set_is_process_ready(false);
 
         let msg = request::TerminateServerProcessRequest {};
@@ -268,22 +254,18 @@ impl ServerState {
             let msg = request::ActivateGameSessionRequest { game_session_id };
             self.inner.request(msg).await
         } else {
-            Err(crate::error::GameLiftErrorType::GameSessionIdNotSet)
+            Err(GameLiftErrorType::GameSessionIdNotSet)
         }
     }
 
-    pub async fn get_game_session_id(
-        &self,
-    ) -> Result<crate::entity::GameSessionId, GameLiftErrorType> {
+    pub async fn get_game_session_id(&self) -> Result<String, GameLiftErrorType> {
         match self.inner.get_game_session_id() {
             Some(game_session_id) => Ok(game_session_id),
             None => Err(GameLiftErrorType::GameSessionIdNotSet),
         }
     }
 
-    pub async fn get_termination_time(
-        &self,
-    ) -> Result<crate::entity::TerminationTimeType, GameLiftErrorType> {
+    pub async fn get_termination_time(&self) -> Result<SystemTime, GameLiftErrorType> {
         match self.inner.get_termination_time() {
             Some(value) => Ok(value),
             None => Err(GameLiftErrorType::TerminationTimeNotSet),
@@ -292,7 +274,7 @@ impl ServerState {
 
     pub async fn update_player_session_creation_policy(
         &self,
-        player_session_policy: crate::entity::PlayerSessionCreationPolicy,
+        player_session_policy: model::PlayerSessionCreationPolicy,
     ) -> Result<(), GameLiftErrorType> {
         let inner = &self.inner;
 
@@ -300,7 +282,7 @@ impl ServerState {
         if let Some(game_session_id) = game_session_id {
             let msg = request::UpdatePlayerSessionCreationPolicyRequest {
                 game_session_id,
-                player_session_policy: player_session_policy.to_string(),
+                player_session_policy,
             };
             self.inner.request(msg).await
         } else {
@@ -310,11 +292,12 @@ impl ServerState {
 
     pub async fn accept_player_session(
         &self,
-        player_session_id: crate::entity::PlayerSessionId,
+        player_session_id: impl Into<String>,
     ) -> Result<(), GameLiftErrorType> {
         let inner = &self.inner;
 
         let game_session_id = inner.get_game_session_id();
+        let player_session_id = player_session_id.into();
         if let Some(game_session_id) = game_session_id {
             let msg = request::AcceptPlayerSessionRequest { game_session_id, player_session_id };
             self.inner.request(msg).await
@@ -325,11 +308,12 @@ impl ServerState {
 
     pub async fn remove_player_session(
         &self,
-        player_session_id: crate::entity::PlayerSessionId,
+        player_session_id: impl Into<String>,
     ) -> Result<(), GameLiftErrorType> {
         let inner = &self.inner;
 
         let game_session_id = inner.get_game_session_id();
+        let player_session_id = player_session_id.into();
         if let Some(game_session_id) = game_session_id {
             let msg = request::RemovePlayerSessionRequest { game_session_id, player_session_id };
             self.inner.request(msg).await
@@ -378,10 +362,27 @@ impl ServerState {
         Ok(Self { inner: ServerStateInner::new(server_parameters).await? })
     }
 
-    pub async fn get_instance_certificate(
+    pub async fn get_compute_certificate(
         &self,
     ) -> Result<responce_result::GetComputeCertificateResult, GameLiftErrorType> {
         let msg = request::GetComputeCertificateRequest {};
         self.inner.request(msg).await
+    }
+
+    pub async fn get_fleet_role_credentials(
+        &self,
+        request: model::GetFleetRoleCredentialsRequest,
+    ) -> Result<responce_result::GetFleetRoleCredentialsResult, GameLiftErrorType> {
+        self.inner.request(request).await
+    }
+
+    pub async fn request<T>(
+        &self,
+        request: T,
+    ) -> Result<<T as model::protocol::RequestContent>::Response, GameLiftErrorType>
+    where
+        T: model::protocol::RequestContent,
+    {
+        self.inner.request(request).await
     }
 }

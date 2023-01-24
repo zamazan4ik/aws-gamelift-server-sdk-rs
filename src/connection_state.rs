@@ -5,7 +5,10 @@ use tokio::sync::{mpsc, oneshot};
 use tokio_tungstenite::tungstenite;
 
 use crate::{
-    model::{self, RequestContent, RequestMessage, ResponceMessage},
+    model::{
+        self,
+        protocol::{self, RequestContent, RequestMessage, ResponceMessage},
+    },
     web_socket_listener::{GameLiftEventInner, WebSocket},
 };
 
@@ -50,12 +53,12 @@ impl ConnectionState {
 
         // TerminateServerProcess action responds with close request instead of success
         if let Some(id) = self.terminate_request_id.take() {
-            self.do_feedback(model::ResponceMessage::new_fake_success(
+            self.do_feedback(protocol::ResponceMessage::new_fake_success(
                 model::request::TerminateServerProcessRequest::ACTION_NAME.to_owned(),
                 id,
             ));
         }
-        
+
         log::info!("Websocket closed");
     }
 

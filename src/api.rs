@@ -1,6 +1,6 @@
 use crate::{
-    error::GameLiftErrorType,
-    model::{request, responce_result},
+    model::{self, responce_result},
+    GameLiftErrorType,
 };
 
 const SDK_VERSION: &str = "5.0.0";
@@ -19,7 +19,7 @@ impl Api {
     /// Initializes the GameLift SDK. This method should be called on launch,
     /// before any other GameLift-related initialization occurs.
     pub async fn init_sdk(
-        server_parameters: crate::server_parameters::ServerParameters,
+        server_parameters: crate::ServerParameters,
     ) -> Result<Self, GameLiftErrorType> {
         let state =
             crate::server_state::ServerState::initialize_networking(server_parameters).await?;
@@ -32,8 +32,8 @@ impl Api {
     /// that are required before the server process can host a game session.
     /// This method should be called only once per process.
     pub async fn process_ready(
-        &mut self,
-        process_parameters: crate::process_parameters::ProcessParameters,
+        &self,
+        process_parameters: crate::ProcessParameters,
     ) -> Result<(), GameLiftErrorType> {
         self.state.process_ready(process_parameters).await
     }
@@ -61,16 +61,14 @@ impl Api {
     /// GameLift Service API Reference).
     pub async fn update_player_session_creation_policy(
         &self,
-        player_session_policy: crate::entity::PlayerSessionCreationPolicy,
+        player_session_policy: model::PlayerSessionCreationPolicy,
     ) -> Result<(), GameLiftErrorType> {
         self.state.update_player_session_creation_policy(player_session_policy).await
     }
 
     /// Retrieves the ID of the game session currently being hosted by the
     /// server process, if the server process is active.
-    pub async fn get_game_session_id(
-        &self,
-    ) -> Result<crate::entity::GameSessionId, crate::error::GameLiftErrorType> {
+    pub async fn get_game_session_id(&self) -> Result<String, GameLiftErrorType> {
         self.state.get_game_session_id().await
     }
 
@@ -87,9 +85,7 @@ impl Api {
     /// value returned is the estimated termination time. If the process has
     /// not received an on_process_terminate() callback, an error message is
     /// returned. Learn more about shutting down a server process.
-    pub async fn get_termination_time(
-        &self,
-    ) -> Result<crate::entity::TerminationTimeType, crate::error::GameLiftErrorType> {
+    pub async fn get_termination_time(&self) -> Result<std::time::SystemTime, GameLiftErrorType> {
         self.state.get_termination_time().await
     }
 
@@ -101,7 +97,7 @@ impl Api {
     /// to ACTIVE.
     pub async fn accept_player_session(
         &self,
-        player_session_id: crate::entity::PlayerSessionId,
+        player_session_id: impl Into<String>,
     ) -> Result<(), GameLiftErrorType> {
         self.state.accept_player_session(player_session_id).await
     }
@@ -112,7 +108,7 @@ impl Api {
     /// assigned to a new player.
     pub async fn remove_player_session(
         &self,
-        player_session_id: crate::entity::PlayerSessionId,
+        player_session_id: impl Into<String>,
     ) -> Result<(), GameLiftErrorType> {
         self.state.remove_player_session(player_session_id).await
     }
@@ -123,7 +119,7 @@ impl Api {
     /// sessions associated with a single player ID.
     pub async fn describe_player_sessions(
         &self,
-        describe_player_sessions_request: request::DescribePlayerSessionsRequest,
+        describe_player_sessions_request: model::DescribePlayerSessionsRequest,
     ) -> Result<responce_result::DescribePlayerSessionsResult, GameLiftErrorType> {
         self.state.describe_player_sessions(describe_player_sessions_request).await
     }
@@ -145,7 +141,7 @@ impl Api {
     /// the original request.
     pub async fn start_match_backfill(
         &self,
-        request: request::StartMatchBackfillRequest,
+        request: model::StartMatchBackfillRequest,
     ) -> Result<responce_result::StartMatchBackfillResult, GameLiftErrorType> {
         self.state.backfill_matchmaking(request).await
     }
@@ -156,19 +152,31 @@ impl Api {
     /// backfill feature.
     pub async fn stop_match_backfill(
         &self,
-        request: request::StopMatchBackfillRequest,
+        request: model::StopMatchBackfillRequest,
     ) -> Result<(), GameLiftErrorType> {
         self.state.stop_matchmaking(request).await
     }
 
-    /// Retrieves the file location of a pem-encoded TLS certificate that is
-    /// associated with the fleet and its instances. This certificate is
-    /// generated when a new fleet is created with the certificate configuration
-    /// set to GENERATED. Use this certificate to establish a secure connection
-    /// with a game client and to encrypt client/server communication.
-    pub async fn get_instance_certificate(
+    pub async fn get_compute_certificate(
         &self,
     ) -> Result<responce_result::GetComputeCertificateResult, GameLiftErrorType> {
-        self.state.get_instance_certificate().await
+        self.state.get_compute_certificate().await
+    }
+
+    pub async fn get_fleet_role_credentials(
+        &self,
+        request: model::GetFleetRoleCredentialsRequest,
+    ) -> Result<responce_result::GetFleetRoleCredentialsResult, GameLiftErrorType> {
+        self.state.get_fleet_role_credentials(request).await
+    }
+
+    pub async fn request<T>(
+        &self,
+        request: T,
+    ) -> Result<<T as model::protocol::RequestContent>::Response, GameLiftErrorType>
+    where
+        T: model::protocol::RequestContent,
+    {
+        self.state.request(request).await
     }
 }

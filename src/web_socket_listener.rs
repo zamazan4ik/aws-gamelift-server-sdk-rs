@@ -4,7 +4,10 @@ use tokio_tungstenite::tungstenite;
 use crate::{
     connection_state::ConnectionState,
     error::GameLiftErrorType,
-    model::{message, RequestContent, RequestMessage, ResponceMessage},
+    model::{
+        message,
+        protocol::{RequestContent, RequestMessage, ResponceMessage},
+    },
     server_parameters::ServerParameters,
 };
 
@@ -38,7 +41,9 @@ pub(crate) struct WebSocketListener {
 }
 
 impl WebSocketListener {
-    pub(crate) async fn connect(server_parameters: &ServerParameters) -> Result<Self, GameLiftErrorType> {
+    pub(crate) async fn connect(
+        server_parameters: &ServerParameters,
+    ) -> Result<Self, GameLiftErrorType> {
         let connection_string = Self::create_uri(server_parameters);
         log::debug!("AWS GameLift Server WebSocket connection uri: {}", connection_string);
         match tokio_tungstenite::connect_async(connection_string).await {

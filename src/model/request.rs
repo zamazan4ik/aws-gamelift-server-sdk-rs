@@ -1,8 +1,6 @@
 use serde::Serialize;
 
-use crate::entity::Player;
-
-use super::{responce_result, RequestContent};
+use super::{protocol::RequestContent, responce_result, Player, PlayerSessionCreationPolicy};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "PascalCase")]
@@ -60,11 +58,11 @@ impl RequestContent for DescribePlayerSessionsRequest {
 impl Default for DescribePlayerSessionsRequest {
     fn default() -> Self {
         Self {
-            game_session_id: Default::default(),
-            player_session_id: Default::default(),
-            player_id: Default::default(),
-            player_session_status_filter: Default::default(),
-            next_token: Default::default(),
+            game_session_id: String::default(),
+            player_session_id: String::default(),
+            player_id: String::default(),
+            player_session_status_filter: String::default(),
+            next_token: String::default(),
             limit: 50,
         }
     }
@@ -154,7 +152,7 @@ impl RequestContent for TerminateServerProcessRequest {
 #[serde(rename_all = "PascalCase")]
 pub struct UpdatePlayerSessionCreationPolicyRequest {
     pub game_session_id: String,
-    pub player_session_policy: String,
+    pub player_session_policy: PlayerSessionCreationPolicy,
 }
 
 impl RequestContent for UpdatePlayerSessionCreationPolicyRequest {

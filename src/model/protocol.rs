@@ -38,3 +38,36 @@ pub trait RequestContent: Serialize {
     const ACTION_NAME: &'static str;
     type Response: DeserializeOwned;
 }
+
+pub mod unix_time {
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S>(value: &SystemTime, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let value = match value.duration_since(UNIX_EPOCH) {
+            Ok(v) => v.as_millis() as i64,
+            Err(e) => -(e.duration().as_millis() as i64),
+        };
+        serializer.serialize_i64(value)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<SystemTime, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        match <i64 as Deserialize>::deserialize(deserializer) {
+            Ok(v) => {
+                if 0 <= v {
+                    Ok(UNIX_EPOCH + Duration::from_millis(v as u64))
+                } else {
+                    Ok(UNIX_EPOCH + Duration::from_millis(-v as u64))
+                }
+            }
+            Err(e) => Err(e),
+        }
+    }
+}

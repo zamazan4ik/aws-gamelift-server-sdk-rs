@@ -1,9 +1,15 @@
+mod data;
 pub mod message;
-mod protocol;
+pub mod protocol;
 pub mod request;
 pub mod responce_result;
 
-pub use protocol::*;
+pub use data::*;
 
-pub type GameSession = message::CreateGameSessionMessage;
-pub type UpdateGameSession = message::UpdateGameSessionMessage;
+pub use message::{
+    CreateGameSessionMessage as GameSession, UpdateGameSessionMessage as UpdateGameSession,
+};
+pub use request::{
+    DescribePlayerSessionsRequest, GetFleetRoleCredentialsRequest, StartMatchBackfillRequest,
+    StopMatchBackfillRequest,
+};

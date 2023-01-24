@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-use crate::entity::PlayerSession;
+use super::PlayerSession;
 
 const MAX_PLAYER_SESSIONS: usize = 1024;
 
