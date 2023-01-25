@@ -35,6 +35,7 @@ pub(crate) enum GameLiftEventInner {
     OnHealthCheck(),
 }
 
+#[derive(Debug)]
 pub(crate) struct WebSocketListener {
     request_sender: mpsc::UnboundedSender<(RequestMessage, oneshot::Sender<ResponceMessage>)>,
     event_receiver: Option<mpsc::Receiver<GameLiftEventInner>>,

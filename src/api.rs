@@ -5,6 +5,7 @@ use crate::{
 
 const SDK_VERSION: &str = "5.0.0";
 
+#[derive(Debug)]
 pub struct Api {
     state: crate::server_state::ServerState,
 }
@@ -31,10 +32,13 @@ impl Api {
     /// [init_sdk](crate::api::Api::init_sdk) and completing setup tasks
     /// that are required before the server process can host a game session.
     /// This method should be called only once per process.
-    pub async fn process_ready(
+    pub async fn process_ready<Fn1, Fn2, Fn3, Fn4>(
         &self,
-        process_parameters: crate::ProcessParameters,
-    ) -> Result<(), GameLiftErrorType> {
+        process_parameters: crate::ProcessParameters<Fn1, Fn2, Fn3, Fn4>,
+    ) -> Result<(), GameLiftErrorType>
+    where
+        crate::ProcessParameters<Fn1, Fn2, Fn3, Fn4>: crate::GameLiftEventCallbacks,
+    {
         self.state.process_ready(process_parameters).await
     }
 

@@ -12,6 +12,7 @@ use crate::{
     process_parameters::ProcessParameters,
     server_parameters::ServerParameters,
     web_socket_listener::{GameLiftEventInner, WebSocketListener},
+    GameLiftEventCallbacks,
 };
 use tokio::sync::mpsc;
 
@@ -27,6 +28,7 @@ const HEALTHCHECK_TIMEOUT_SECONDS: u64 =
     HEALTHCHECK_INTERVAL_SECONDS - HEALTHCHECK_MAX_JITTER_SECONDS;
 const SDK_LANGUAGE: &str = "Rust";
 
+#[derive(Debug)]
 struct ServerStateInner {
     is_process_ready: AtomicBool,
     game_session_id: parking_lot::Mutex<Option<String>>,
@@ -83,16 +85,16 @@ impl ServerStateInner {
 struct EventListener {
     inner: Arc<ServerStateInner>,
     event_receiver: mpsc::Receiver<GameLiftEventInner>,
-    process_parameters: ProcessParameters,
+    process_parameters: Box<dyn GameLiftEventCallbacks>,
 }
 
 impl EventListener {
     fn new(
         inner: Arc<ServerStateInner>,
         event_receiver: mpsc::Receiver<GameLiftEventInner>,
-        process_parameters: ProcessParameters,
+        process_parameters: impl GameLiftEventCallbacks + 'static,
     ) -> Self {
-        Self { inner, event_receiver, process_parameters }
+        Self { inner, event_receiver, process_parameters: Box::new(process_parameters) }
     }
 
     async fn run(mut self) {
@@ -135,7 +137,7 @@ impl EventListener {
         log::debug!("Health check and event listening ended.");
     }
 
-    async fn on_start_game_session(&self, mut game_session: model::GameSession) {
+    async fn on_start_game_session(&mut self, mut game_session: model::GameSession) {
         let inner = &self.inner;
 
         // Inject data that already exists on the server
@@ -147,26 +149,29 @@ impl EventListener {
         }
 
         *inner.game_session_id.lock() = Some(game_session.game_session_id.clone());
-        (self.process_parameters.on_start_game_session)(game_session).await;
+        let callback = self.process_parameters.on_start_game_session(game_session);
+        callback.await;
     }
 
-    async fn on_terminate_process(&self, termination_time: SystemTime) {
+    async fn on_terminate_process(&mut self, termination_time: SystemTime) {
         log::debug!(
             "ServerState got the terminateProcess signal. TerminateProcess: {:?}",
             termination_time
         );
 
         *self.inner.termination_time.lock() = Some(termination_time);
-        (self.process_parameters.on_process_terminate)().await;
+        let callback = self.process_parameters.on_process_terminate();
+        callback.await;
     }
 
-    async fn on_update_game_session(&self, update_game_session: model::UpdateGameSession) {
+    async fn on_update_game_session(&mut self, update_game_session: model::UpdateGameSession) {
         if !self.inner.is_process_ready() {
             log::warn!("Got an updated game session on inactive process.");
             return;
         }
 
-        (self.process_parameters.on_update_game_session)(update_game_session).await;
+        let callback = self.process_parameters.on_update_game_session(update_game_session);
+        callback.await;
     }
 
     async fn on_refresh_connection(
@@ -194,7 +199,7 @@ impl EventListener {
         Ok(())
     }
 
-    async fn report_health(&self) {
+    async fn report_health(&mut self) {
         if !self.inner.is_process_ready() {
             log::debug!("Reporting Health on an inactive process. Ignoring.");
             return;
@@ -202,7 +207,7 @@ impl EventListener {
 
         log::debug!("Reporting health using the OnHealthCheck callback.");
 
-        let callback = (self.process_parameters.on_health_check)();
+        let callback = self.process_parameters.on_health_check();
         let result = tokio::time::timeout(
             std::time::Duration::from_secs(HEALTHCHECK_TIMEOUT_SECONDS),
             callback,
@@ -217,15 +222,19 @@ impl EventListener {
     }
 }
 
+#[derive(Debug)]
 pub struct ServerState {
     inner: Arc<ServerStateInner>,
 }
 
 impl ServerState {
-    pub async fn process_ready(
+    pub async fn process_ready<Fn1, Fn2, Fn3, Fn4>(
         &self,
-        process_parameters: ProcessParameters,
-    ) -> Result<(), GameLiftErrorType> {
+        process_parameters: ProcessParameters<Fn1, Fn2, Fn3, Fn4>,
+    ) -> Result<(), GameLiftErrorType>
+    where
+        crate::ProcessParameters<Fn1, Fn2, Fn3, Fn4>: crate::GameLiftEventCallbacks,
+    {
         let inner = &self.inner;
 
         let event_receiver = {
