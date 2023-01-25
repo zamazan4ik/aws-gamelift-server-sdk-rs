@@ -68,17 +68,40 @@ impl ServerStateInner {
         *self.termination_time.lock()
     }
 
-    async fn run_event_listener(
-        self: Arc<Self>,
-        mut event_receiver: mpsc::Receiver<GameLiftEventInner>,
+    pub async fn request<T>(
+        &self,
+        request: T,
+    ) -> Result<<T as model::protocol::RequestContent>::Response, GameLiftErrorType>
+    where
+        T: model::protocol::RequestContent,
+    {
+        let lock = self.websocket_listener.read().await;
+        lock.request(request).await
+    }
+}
+
+struct EventListener {
+    inner: Arc<ServerStateInner>,
+    event_receiver: mpsc::Receiver<GameLiftEventInner>,
+    process_parameters: ProcessParameters,
+}
+
+impl EventListener {
+    fn new(
+        inner: Arc<ServerStateInner>,
+        event_receiver: mpsc::Receiver<GameLiftEventInner>,
         process_parameters: ProcessParameters,
-    ) {
+    ) -> Self {
+        Self { inner, event_receiver, process_parameters }
+    }
+
+    async fn run(mut self) {
         let mut interval = tokio::time::interval(Duration::from_secs(HEALTHCHECK_TIMEOUT_SECONDS));
         log::debug!("Health check and event listening started.");
 
         loop {
             let event = tokio::select! {
-                e = event_receiver.recv() => e,
+                e = self.event_receiver.recv() => e,
                 _ = interval.tick() => Some(GameLiftEventInner::OnHealthCheck()),
             };
 
@@ -89,42 +112,22 @@ impl ServerStateInner {
 
             match event {
                 GameLiftEventInner::OnStartGameSession(msg) => {
-                    self.on_start_game_session(&process_parameters, msg).await;
+                    self.on_start_game_session(msg).await;
                 }
                 GameLiftEventInner::OnUpdateGameSession(msg) => {
-                    self.on_update_game_session(&process_parameters, msg).await;
+                    self.on_update_game_session(msg).await;
                 }
                 GameLiftEventInner::OnTerminateProcess(msg) => {
-                    self.on_terminate_process(&process_parameters, msg.termination_time).await;
+                    self.on_terminate_process(msg.termination_time).await;
                 }
                 GameLiftEventInner::OnRefreshConnection(msg) => {
-                    log::info!("Refresh connection");
-
-                    let server_parameters = ServerParameters {
-                        web_socket_url: msg.refresh_connection_endpoint,
-                        process_id: self.process_id.clone(),
-                        host_id: self.host_id.clone(),
-                        fleet_id: self.fleet_id.clone(),
-                        auth_token: msg.auth_token,
-                    };
-
-                    // Reserves locks to prevent new requests from being made
-                    let mut lock = self.websocket_listener.write().await;
-                    match WebSocketListener::connect(&server_parameters).await {
-                        Ok(mut websocket_listener) => {
-                            event_receiver = websocket_listener
-                                .take_event_receiver()
-                                .expect("Need to continue listening");
-                            *lock = websocket_listener;
-                        }
-                        Err(error) => {
-                            log::error!("Refresh connection failure: {error}");
-                            break;
-                        }
-                    };
+                    if let Err(e) = self.on_refresh_connection(msg).await {
+                        log::error!("Refresh connection failure: {e}");
+                        break;
+                    }
                 }
                 GameLiftEventInner::OnHealthCheck() => {
-                    self.report_health(&process_parameters).await;
+                    self.report_health().await;
                 }
             }
         }
@@ -132,59 +135,74 @@ impl ServerStateInner {
         log::debug!("Health check and event listening ended.");
     }
 
-    async fn on_start_game_session(
-        &self,
-        process_parameters: &ProcessParameters,
-        mut game_session: model::GameSession,
-    ) {
-        // Inject data that already exists on the server
-        game_session.fleet_id = self.fleet_id.clone();
+    async fn on_start_game_session(&self, mut game_session: model::GameSession) {
+        let inner = &self.inner;
 
-        if !self.is_process_ready() {
+        // Inject data that already exists on the server
+        game_session.fleet_id = inner.fleet_id.clone();
+
+        if !inner.is_process_ready() {
             log::debug!("Got a game session on inactive process. Ignoring.");
             return;
         }
 
-        *self.game_session_id.lock() = Some(game_session.game_session_id.clone());
-        (process_parameters.on_start_game_session)(game_session).await;
+        *inner.game_session_id.lock() = Some(game_session.game_session_id.clone());
+        (self.process_parameters.on_start_game_session)(game_session).await;
     }
 
-    async fn on_terminate_process(
-        &self,
-        process_parameters: &ProcessParameters,
-        termination_time: SystemTime,
-    ) {
+    async fn on_terminate_process(&self, termination_time: SystemTime) {
         log::debug!(
             "ServerState got the terminateProcess signal. TerminateProcess: {:?}",
             termination_time
         );
 
-        *self.termination_time.lock() = Some(termination_time);
-        (process_parameters.on_process_terminate)().await;
+        *self.inner.termination_time.lock() = Some(termination_time);
+        (self.process_parameters.on_process_terminate)().await;
     }
 
-    async fn on_update_game_session(
-        &self,
-        process_parameters: &ProcessParameters,
-        update_game_session: model::UpdateGameSession,
-    ) {
-        if !self.is_process_ready() {
+    async fn on_update_game_session(&self, update_game_session: model::UpdateGameSession) {
+        if !self.inner.is_process_ready() {
             log::warn!("Got an updated game session on inactive process.");
             return;
         }
 
-        (process_parameters.on_update_game_session)(update_game_session).await;
+        (self.process_parameters.on_update_game_session)(update_game_session).await;
     }
 
-    async fn report_health(&self, process_parameters: &ProcessParameters) {
-        if !self.is_process_ready() {
+    async fn on_refresh_connection(
+        &mut self,
+        message: model::message::RefreshConnectionMessage,
+    ) -> Result<(), GameLiftErrorType> {
+        log::info!("Refresh connection");
+
+        let inner = &self.inner;
+
+        let server_parameters = ServerParameters {
+            web_socket_url: message.refresh_connection_endpoint,
+            process_id: inner.process_id.clone(),
+            host_id: inner.host_id.clone(),
+            fleet_id: inner.fleet_id.clone(),
+            auth_token: message.auth_token,
+        };
+
+        // Reserves locks to prevent new requests from being made
+        let mut lock = inner.websocket_listener.write().await;
+        let mut websocket_listener = WebSocketListener::connect(&server_parameters).await?;
+        self.event_receiver =
+            websocket_listener.take_event_receiver().expect("Need to continue listening");
+        *lock = websocket_listener;
+        Ok(())
+    }
+
+    async fn report_health(&self) {
+        if !self.inner.is_process_ready() {
             log::debug!("Reporting Health on an inactive process. Ignoring.");
             return;
         }
 
         log::debug!("Reporting health using the OnHealthCheck callback.");
 
-        let callback = (process_parameters.on_health_check)();
+        let callback = (self.process_parameters.on_health_check)();
         let result = tokio::time::timeout(
             std::time::Duration::from_secs(HEALTHCHECK_TIMEOUT_SECONDS),
             callback,
@@ -193,20 +211,9 @@ impl ServerStateInner {
 
         let health_status = result.unwrap_or(false);
         let msg = request::HeartbeatServerProcessRequest { health_status };
-        if let Err(error) = self.request(msg).await {
+        if let Err(error) = self.inner.request(msg).await {
             log::warn!("Could not send health starus: {:?}", error);
         }
-    }
-
-    pub async fn request<T>(
-        &self,
-        request: T,
-    ) -> Result<<T as model::protocol::RequestContent>::Response, GameLiftErrorType>
-    where
-        T: model::protocol::RequestContent,
-    {
-        let lock = self.websocket_listener.read().await;
-        lock.request(request).await
     }
 }
 
@@ -236,7 +243,8 @@ impl ServerState {
         };
         let result = self.inner.request(msg).await;
 
-        tokio::spawn(inner.clone().run_event_listener(event_receiver, process_parameters));
+        let event_listener = EventListener::new(inner.clone(), event_receiver, process_parameters);
+        tokio::spawn(event_listener.run());
 
         result
     }
