@@ -10,23 +10,23 @@ use crate::{
         protocol::{self, RequestContent, RequestMessage, ResponceMessage},
     },
     web_socket_listener::{ServerEventInner, WebSocket},
+    Error,
 };
+
+pub(crate) type Feedback = Result<ResponceMessage, Error>;
 
 pub(crate) struct ConnectionState {
     web_socket: WebSocket,
-    request_receiver: mpsc::UnboundedReceiver<(RequestMessage, oneshot::Sender<ResponceMessage>)>,
+    request_receiver: mpsc::UnboundedReceiver<(RequestMessage, oneshot::Sender<Feedback>)>,
     event_sender: mpsc::Sender<ServerEventInner>,
-    requests: HashMap<String, oneshot::Sender<ResponceMessage>>,
+    requests: HashMap<String, oneshot::Sender<Feedback>>,
     terminate_request_id: Option<String>,
 }
 
 impl ConnectionState {
     pub(crate) fn new(
         web_socket: WebSocket,
-        request_receiver: mpsc::UnboundedReceiver<(
-            RequestMessage,
-            oneshot::Sender<ResponceMessage>,
-        )>,
+        request_receiver: mpsc::UnboundedReceiver<(RequestMessage, oneshot::Sender<Feedback>)>,
         event_sender: mpsc::Sender<ServerEventInner>,
     ) -> Self {
         Self {
@@ -64,32 +64,31 @@ impl ConnectionState {
 
     async fn send_request(
         &mut self,
-        request: Option<(RequestMessage, oneshot::Sender<ResponceMessage>)>,
+        request: Option<(RequestMessage, oneshot::Sender<Feedback>)>,
     ) -> bool {
         if let Some((msg, feedback)) = request {
             log::info!("Sending {}: request_id {}", msg.action, msg.request_id);
-            let json = match serde_json::to_string(&msg) {
-                Ok(v) => v,
-                Err(e) => {
-                    log::warn!("Invalid request error: {e}");
-                    return false;
-                }
-            };
-            log::debug!("Sending socket message: \n{json}");
+            match serde_json::to_string(&msg) {
+                Ok(json) => {
+                    log::debug!("Sending socket message: \n{json}");
 
-            match self.web_socket.send(tungstenite::Message::Text(json)).await {
-                Ok(_) => {
+                    if let Err(error) = self.web_socket.send(tungstenite::Message::Text(json)).await
+                    {
+                        Self::do_feedback_error(feedback, msg.request_id, error);
+                        return false;
+                    };
                     if msg.action == model::request::TerminateServerProcessRequest::ACTION_NAME {
                         self.terminate_request_id = Some(msg.request_id.clone());
                     }
-                    if let Some(_prev) = self.requests.insert(msg.request_id, feedback) {
-                        log::warn!("One request was overwritten");
+                    if let Some(prev) = self.requests.insert(msg.request_id.clone(), feedback) {
+                        Self::do_feedback_error(prev, msg.request_id, Error::RequestWasOverwritten);
                     }
                 }
-                Err(e) => {
-                    log::warn!("Request send error: {e}");
+                Err(error) => {
+                    Self::do_feedback_error(feedback, msg.request_id, error);
                 }
             };
+
             false
         } else {
             if let Err(e) = self.web_socket.close(None).await {
@@ -104,7 +103,7 @@ impl ConnectionState {
             Ok(msg) => match msg {
                 tungstenite::Message::Text(t) => {
                     if let Err(e) = self.reaction(t).await {
-                        log::warn!("{e}");
+                        log::warn!("Reaction error: {e}");
                     }
                 }
                 tungstenite::Message::Binary(b) => {
@@ -160,6 +159,7 @@ impl ConnectionState {
                 self.event_sender.try_send(ServerEventInner::OnStartGameSession(data))?;
             }
             model::message::RefreshConnectionMessage::ACTION_NAME => {
+                self.request_receiver.close();
                 let data: model::message::RefreshConnectionMessage =
                     serde_json::from_value(message.rest_data)?;
                 self.event_sender.try_send(ServerEventInner::OnRefreshConnection(data))?;
@@ -175,26 +175,37 @@ impl ConnectionState {
                 self.event_sender.try_send(ServerEventInner::OnUpdateGameSession(data))?;
             }
             _ => {
-                if message.request_id.is_empty() {
-                    log::info!("Request id was null with {}", message.action);
-                } else {
-                    self.do_feedback(message);
-                }
+                self.do_feedback(message);
             }
         }
         Ok(())
     }
 
     fn do_feedback(&mut self, message: ResponceMessage) {
+        if message.request_id.is_empty() {
+            log::warn!("Request id was null with {}", message.action);
+            return;
+        }
+
         match self.requests.remove(&message.request_id) {
             Some(feedback) => {
-                if let Err(e) = feedback.send(message) {
-                    log::warn!("Feedback error {}", e.request_id);
+                if let Err(Ok(v)) = feedback.send(Ok(message)) {
+                    log::warn!("Responces could not be feedbacked: request_id {}", v.request_id);
                 }
             }
             None => {
                 log::warn!("Request {} not found", message.request_id);
             }
+        }
+    }
+
+    fn do_feedback_error(
+        feedback: oneshot::Sender<Feedback>,
+        request_id: String,
+        error: impl Into<Error>,
+    ) {
+        if let Err(Err(v)) = feedback.send(Err(error.into())) {
+            log::warn!("Errors could not be feedbacked: request_id {request_id}, error {v}");
         }
     }
 }

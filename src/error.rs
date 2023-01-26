@@ -1,29 +1,32 @@
-#[derive(thiserror::Error, Debug, strum_macros::Display)]
-pub enum GameLiftErrorType {
-    // todo: Make appropriate error type
-    ServiceCallFailed,
-    LocalConnectionFailed(tokio_tungstenite::tungstenite::Error),
-    NetworkNotInitialized,
+#[derive(thiserror::Error, Debug)]
+pub enum Error {
+    #[error("Service call failed")]
+    ServiceCallFailed(#[from] tokio_tungstenite::tungstenite::Error),
+
+    #[error("Local connection failed")]
+    LocalConnectionFailed(#[source] tokio_tungstenite::tungstenite::Error),
+
+    #[error("Game session id is not yet because OnStartGameSession has not been received")]
     GameSessionIdNotSet,
+
+    #[error("Termination time is not yet because OnProcessTerminate has not been received")]
     TerminationTimeNotSet,
-    BadRequest,
-    InternalServiceError,
-    UnexpectedWebSocketMessage,
-    InvalidJson(serde_json::Error),
-    WebSocketError(tokio_tungstenite::tungstenite::Error),
-    WebSocketAlreadyClosed,
+
+    #[error("Bad request: {0}")]
+    BadRequest(String),
+
+    #[error("Invalid JSON")]
+    InvalidJson(#[from] serde_json::Error),
+
+    #[error("Local connection already closed")]
+    LocalConnectionAlreadyClosed,
+
+    #[error("Request unsuccessful with status code {0}: {1}")]
     RequestUnsuccessful(u16, String),
+
+    #[error("Request timeout")]
     RequestTimeout,
-}
 
-impl From<serde_json::Error> for GameLiftErrorType {
-    fn from(value: serde_json::Error) -> Self {
-        Self::InvalidJson(value)
-    }
-}
-
-impl From<tokio_tungstenite::tungstenite::Error> for GameLiftErrorType {
-    fn from(value: tokio_tungstenite::tungstenite::Error) -> Self {
-        Self::WebSocketError(value)
-    }
+    #[error("This request was overwritten by another request with the same id")]
+    RequestWasOverwritten,
 }

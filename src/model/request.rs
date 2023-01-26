@@ -81,7 +81,7 @@ impl RequestContent for GetComputeCertificateRequest {
 #[serde(rename_all = "PascalCase")]
 pub struct GetFleetRoleCredentialsRequest {
     pub role_arn: String,
-    pub role_session_name: String,
+    pub role_session_name: Option<String>,
 }
 
 impl RequestContent for GetFleetRoleCredentialsRequest {

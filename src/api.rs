@@ -1,6 +1,6 @@
 use crate::{
     model::{self, responce_result},
-    GameLiftErrorType,
+    Error,
 };
 
 const SDK_VERSION: &str = "5.0.0";
@@ -19,9 +19,7 @@ impl Api {
 
     /// Initializes the GameLift SDK. This method should be called on launch,
     /// before any other GameLift-related initialization occurs.
-    pub async fn init_sdk(
-        server_parameters: crate::ServerParameters,
-    ) -> Result<Self, GameLiftErrorType> {
+    pub async fn init_sdk(server_parameters: crate::ServerParameters) -> Result<Self, Error> {
         let state =
             crate::server_state::ServerState::initialize_networking(server_parameters).await?;
         Ok(Self { state })
@@ -35,7 +33,7 @@ impl Api {
     pub async fn process_ready<Fn1, Fn2, Fn3, Fn4>(
         &self,
         process_parameters: crate::ProcessParameters<Fn1, Fn2, Fn3, Fn4>,
-    ) -> Result<(), GameLiftErrorType>
+    ) -> Result<(), Error>
     where
         crate::ProcessParameters<Fn1, Fn2, Fn3, Fn4>: crate::GameLiftEventCallbacks,
     {
@@ -47,7 +45,7 @@ impl Api {
     /// shutting down all active game sessions. This method should exit with an
     /// exit code of 0; a non-zero exit code results in an event message that
     /// the process did not exit cleanly.
-    pub async fn process_ending(&self) -> Result<(), GameLiftErrorType> {
+    pub async fn process_ending(&self) -> Result<(), Error> {
         self.state.process_ending().await
     }
 
@@ -55,7 +53,7 @@ impl Api {
     /// game session and is now ready to receive player connections. This action
     /// should be called as part of the on_start_game_session() callback
     /// function, after all game session initialization has been completed.
-    pub async fn activate_game_session(&self) -> Result<(), GameLiftErrorType> {
+    pub async fn activate_game_session(&self) -> Result<(), Error> {
         self.state.activate_game_session().await
     }
 
@@ -66,13 +64,13 @@ impl Api {
     pub async fn update_player_session_creation_policy(
         &self,
         player_session_policy: model::PlayerSessionCreationPolicy,
-    ) -> Result<(), GameLiftErrorType> {
+    ) -> Result<(), Error> {
         self.state.update_player_session_creation_policy(player_session_policy).await
     }
 
     /// Retrieves the ID of the game session currently being hosted by the
     /// server process, if the server process is active.
-    pub async fn get_game_session_id(&self) -> Result<String, GameLiftErrorType> {
+    pub async fn get_game_session_id(&self) -> Result<String, Error> {
         self.state.get_game_session_id().await
     }
 
@@ -89,7 +87,7 @@ impl Api {
     /// value returned is the estimated termination time. If the process has
     /// not received an on_process_terminate() callback, an error message is
     /// returned. Learn more about shutting down a server process.
-    pub async fn get_termination_time(&self) -> Result<std::time::SystemTime, GameLiftErrorType> {
+    pub async fn get_termination_time(&self) -> Result<std::time::SystemTime, Error> {
         self.state.get_termination_time().await
     }
 
@@ -102,7 +100,7 @@ impl Api {
     pub async fn accept_player_session(
         &self,
         player_session_id: impl Into<String>,
-    ) -> Result<(), GameLiftErrorType> {
+    ) -> Result<(), Error> {
         self.state.accept_player_session(player_session_id).await
     }
 
@@ -113,7 +111,7 @@ impl Api {
     pub async fn remove_player_session(
         &self,
         player_session_id: impl Into<String>,
-    ) -> Result<(), GameLiftErrorType> {
+    ) -> Result<(), Error> {
         self.state.remove_player_session(player_session_id).await
     }
 
@@ -124,7 +122,7 @@ impl Api {
     pub async fn describe_player_sessions(
         &self,
         describe_player_sessions_request: model::DescribePlayerSessionsRequest,
-    ) -> Result<responce_result::DescribePlayerSessionsResult, GameLiftErrorType> {
+    ) -> Result<responce_result::DescribePlayerSessionsResult, Error> {
         self.state.describe_player_sessions(describe_player_sessions_request).await
     }
 
@@ -146,7 +144,7 @@ impl Api {
     pub async fn start_match_backfill(
         &self,
         request: model::StartMatchBackfillRequest,
-    ) -> Result<responce_result::StartMatchBackfillResult, GameLiftErrorType> {
+    ) -> Result<responce_result::StartMatchBackfillResult, Error> {
         self.state.backfill_matchmaking(request).await
     }
 
@@ -157,27 +155,27 @@ impl Api {
     pub async fn stop_match_backfill(
         &self,
         request: model::StopMatchBackfillRequest,
-    ) -> Result<(), GameLiftErrorType> {
+    ) -> Result<(), Error> {
         self.state.stop_matchmaking(request).await
     }
 
     pub async fn get_compute_certificate(
         &self,
-    ) -> Result<responce_result::GetComputeCertificateResult, GameLiftErrorType> {
+    ) -> Result<responce_result::GetComputeCertificateResult, Error> {
         self.state.get_compute_certificate().await
     }
 
     pub async fn get_fleet_role_credentials(
         &self,
         request: model::GetFleetRoleCredentialsRequest,
-    ) -> Result<responce_result::GetFleetRoleCredentialsResult, GameLiftErrorType> {
+    ) -> Result<responce_result::GetFleetRoleCredentialsResult, Error> {
         self.state.get_fleet_role_credentials(request).await
     }
 
     pub async fn request<T>(
         &self,
         request: T,
-    ) -> Result<<T as model::protocol::RequestContent>::Response, GameLiftErrorType>
+    ) -> Result<<T as model::protocol::RequestContent>::Response, Error>
     where
         T: model::protocol::RequestContent,
     {

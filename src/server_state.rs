@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -7,7 +8,7 @@ use std::{
 };
 
 use crate::{
-    error::GameLiftErrorType,
+    error::Error,
     model::{self, request, responce_result},
     process_parameters::ProcessParameters,
     server_parameters::ServerParameters,
@@ -21,6 +22,10 @@ const ENVIRONMENT_VARIABLE_PROCESS_ID: &str = "GAMELIFT_SDK_PROCESS_ID";
 const ENVIRONMENT_VARIABLE_HOST_ID: &str = "GAMELIFT_SDK_HOST_ID";
 const ENVIRONMENT_VARIABLE_FLEET_ID: &str = "GAMELIFT_SDK_FLEET_ID";
 const ENVIRONMENT_VARIABLE_AUTH_TOKEN: &str = "GAMELIFT_SDK_AUTH_TOKEN";
+
+const ROLE_SESSION_NAME_MAX_LENGTH: usize = 64;
+// When within 15 minutes of expiration we retrieve new instance role credentials
+const INSTANCE_ROLE_CREDENTIAL_TTL_MIN: Duration = Duration::from_secs(15 * 60);
 
 const HEALTHCHECK_INTERVAL_SECONDS: u64 = 60;
 const HEALTHCHECK_MAX_JITTER_SECONDS: u64 = 10;
@@ -40,7 +45,7 @@ struct ServerStateInner {
 }
 
 impl ServerStateInner {
-    async fn new(server_parameters: ServerParameters) -> Result<Arc<Self>, GameLiftErrorType> {
+    async fn new(server_parameters: ServerParameters) -> Result<Arc<Self>, Error> {
         let websocket_listener = WebSocketListener::connect(&server_parameters).await?;
         let this = Arc::new(Self {
             is_process_ready: AtomicBool::new(false),
@@ -73,7 +78,7 @@ impl ServerStateInner {
     pub async fn request<T>(
         &self,
         request: T,
-    ) -> Result<<T as model::protocol::RequestContent>::Response, GameLiftErrorType>
+    ) -> Result<<T as model::protocol::RequestContent>::Response, Error>
     where
         T: model::protocol::RequestContent,
     {
@@ -177,7 +182,7 @@ impl EventListener {
     async fn on_refresh_connection(
         &mut self,
         message: model::message::RefreshConnectionMessage,
-    ) -> Result<(), GameLiftErrorType> {
+    ) -> Result<(), Error> {
         log::info!("Refresh connection");
 
         let inner = &self.inner;
@@ -225,13 +230,15 @@ impl EventListener {
 #[derive(Debug)]
 pub struct ServerState {
     inner: Arc<ServerStateInner>,
+    instance_role_result_cache:
+        tokio::sync::Mutex<HashMap<String, responce_result::GetFleetRoleCredentialsResult>>,
 }
 
 impl ServerState {
     pub async fn process_ready<Fn1, Fn2, Fn3, Fn4>(
         &self,
         process_parameters: ProcessParameters<Fn1, Fn2, Fn3, Fn4>,
-    ) -> Result<(), GameLiftErrorType>
+    ) -> Result<(), Error>
     where
         crate::ProcessParameters<Fn1, Fn2, Fn3, Fn4>: crate::GameLiftEventCallbacks,
     {
@@ -258,41 +265,41 @@ impl ServerState {
         result
     }
 
-    pub async fn process_ending(&self) -> Result<(), GameLiftErrorType> {
+    pub async fn process_ending(&self) -> Result<(), Error> {
         self.inner.set_is_process_ready(false);
 
         let msg = request::TerminateServerProcessRequest {};
         self.inner.request(msg).await
     }
 
-    pub async fn activate_game_session(&self) -> Result<(), GameLiftErrorType> {
+    pub async fn activate_game_session(&self) -> Result<(), Error> {
         let game_session_id = self.inner.get_game_session_id();
         if let Some(game_session_id) = game_session_id {
             let msg = request::ActivateGameSessionRequest { game_session_id };
             self.inner.request(msg).await
         } else {
-            Err(GameLiftErrorType::GameSessionIdNotSet)
+            Err(Error::GameSessionIdNotSet)
         }
     }
 
-    pub async fn get_game_session_id(&self) -> Result<String, GameLiftErrorType> {
+    pub async fn get_game_session_id(&self) -> Result<String, Error> {
         match self.inner.get_game_session_id() {
             Some(game_session_id) => Ok(game_session_id),
-            None => Err(GameLiftErrorType::GameSessionIdNotSet),
+            None => Err(Error::GameSessionIdNotSet),
         }
     }
 
-    pub async fn get_termination_time(&self) -> Result<SystemTime, GameLiftErrorType> {
+    pub async fn get_termination_time(&self) -> Result<SystemTime, Error> {
         match self.inner.get_termination_time() {
             Some(value) => Ok(value),
-            None => Err(GameLiftErrorType::TerminationTimeNotSet),
+            None => Err(Error::TerminationTimeNotSet),
         }
     }
 
     pub async fn update_player_session_creation_policy(
         &self,
         player_session_policy: model::PlayerSessionCreationPolicy,
-    ) -> Result<(), GameLiftErrorType> {
+    ) -> Result<(), Error> {
         let inner = &self.inner;
 
         let game_session_id = inner.get_game_session_id();
@@ -303,14 +310,14 @@ impl ServerState {
             };
             self.inner.request(msg).await
         } else {
-            Err(GameLiftErrorType::GameSessionIdNotSet)
+            Err(Error::GameSessionIdNotSet)
         }
     }
 
     pub async fn accept_player_session(
         &self,
         player_session_id: impl Into<String>,
-    ) -> Result<(), GameLiftErrorType> {
+    ) -> Result<(), Error> {
         let inner = &self.inner;
 
         let game_session_id = inner.get_game_session_id();
@@ -319,14 +326,14 @@ impl ServerState {
             let msg = request::AcceptPlayerSessionRequest { game_session_id, player_session_id };
             self.inner.request(msg).await
         } else {
-            Err(GameLiftErrorType::GameSessionIdNotSet)
+            Err(Error::GameSessionIdNotSet)
         }
     }
 
     pub async fn remove_player_session(
         &self,
         player_session_id: impl Into<String>,
-    ) -> Result<(), GameLiftErrorType> {
+    ) -> Result<(), Error> {
         let inner = &self.inner;
 
         let game_session_id = inner.get_game_session_id();
@@ -335,34 +342,32 @@ impl ServerState {
             let msg = request::RemovePlayerSessionRequest { game_session_id, player_session_id };
             self.inner.request(msg).await
         } else {
-            Err(GameLiftErrorType::GameSessionIdNotSet)
+            Err(Error::GameSessionIdNotSet)
         }
     }
 
     pub async fn describe_player_sessions(
         &self,
         request: request::DescribePlayerSessionsRequest,
-    ) -> Result<responce_result::DescribePlayerSessionsResult, GameLiftErrorType> {
+    ) -> Result<responce_result::DescribePlayerSessionsResult, Error> {
         self.inner.request(request).await
     }
 
     pub async fn backfill_matchmaking(
         &self,
         request: request::StartMatchBackfillRequest,
-    ) -> Result<responce_result::StartMatchBackfillResult, GameLiftErrorType> {
+    ) -> Result<responce_result::StartMatchBackfillResult, Error> {
         self.inner.request(request).await
     }
 
     pub async fn stop_matchmaking(
         &self,
         request: request::StopMatchBackfillRequest,
-    ) -> Result<(), GameLiftErrorType> {
+    ) -> Result<(), Error> {
         self.inner.request(request).await
     }
 
-    pub async fn initialize_networking(
-        server_parameters: ServerParameters,
-    ) -> Result<Self, GameLiftErrorType> {
+    pub async fn initialize_networking(server_parameters: ServerParameters) -> Result<Self, Error> {
         let server_parameters = ServerParameters {
             web_socket_url: std::env::var(ENVIRONMENT_VARIABLE_WEBSOCKET_URL)
                 .unwrap_or(server_parameters.web_socket_url),
@@ -376,12 +381,15 @@ impl ServerState {
                 .unwrap_or(server_parameters.auth_token),
         };
 
-        Ok(Self { inner: ServerStateInner::new(server_parameters).await? })
+        Ok(Self {
+            inner: ServerStateInner::new(server_parameters).await?,
+            instance_role_result_cache: tokio::sync::Mutex::new(HashMap::new()),
+        })
     }
 
     pub async fn get_compute_certificate(
         &self,
-    ) -> Result<responce_result::GetComputeCertificateResult, GameLiftErrorType> {
+    ) -> Result<responce_result::GetComputeCertificateResult, Error> {
         let msg = request::GetComputeCertificateRequest {};
         self.inner.request(msg).await
     }
@@ -389,14 +397,60 @@ impl ServerState {
     pub async fn get_fleet_role_credentials(
         &self,
         request: model::GetFleetRoleCredentialsRequest,
-    ) -> Result<responce_result::GetFleetRoleCredentialsResult, GameLiftErrorType> {
-        self.inner.request(request).await
+    ) -> Result<responce_result::GetFleetRoleCredentialsResult, Error> {
+        let mut lock = self.instance_role_result_cache.lock().await;
+        let role_arn = request.role_arn;
+
+        // Check if we're cached credentials recently that still have at least 15 minutes before expiration
+        if let Some(previous_result) = lock.get(&role_arn) {
+            let now = SystemTime::now();
+            if previous_result.expiration - INSTANCE_ROLE_CREDENTIAL_TTL_MIN > now {
+                log::debug!(
+                    "Returning cached credentials which expire in {} seconds",
+                    now.duration_since(previous_result.expiration).unwrap_or_default().as_secs()
+                );
+                return Ok(previous_result.clone());
+            }
+
+            lock.remove(&role_arn);
+        }
+
+        // If role session name was not provided, default to fleetId-hostId
+        let role_session_name = request.role_session_name.unwrap_or_else(|| {
+            let mut generated_role_session_name =
+                format!("{}-{}", self.inner.fleet_id, self.inner.host_id);
+            generated_role_session_name.truncate(ROLE_SESSION_NAME_MAX_LENGTH);
+            generated_role_session_name
+        });
+
+        if role_session_name.len() > ROLE_SESSION_NAME_MAX_LENGTH {
+            return Err(Error::BadRequest(
+                "Role session name cannot be over 64 chars (enforced by IAM's AssumeRole API)"
+                    .to_owned(),
+            ));
+        }
+
+        let request = request::GetFleetRoleCredentialsRequest {
+            role_arn: role_arn.clone(),
+            role_session_name: Some(role_session_name),
+        };
+        let result = self.inner.request(request).await?;
+
+        // If we get a success response from APIGW with empty fields we're not on managed EC2
+        if result.access_key_id.is_empty() {
+            return Err(Error::BadRequest(
+                "SDK is not running on managed EC2, fast-failing the request".to_owned(),
+            ));
+        }
+
+        lock.insert(role_arn, result.clone());
+        Ok(result)
     }
 
     pub async fn request<T>(
         &self,
         request: T,
-    ) -> Result<<T as model::protocol::RequestContent>::Response, GameLiftErrorType>
+    ) -> Result<<T as model::protocol::RequestContent>::Response, Error>
     where
         T: model::protocol::RequestContent,
     {

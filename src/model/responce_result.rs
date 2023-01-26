@@ -1,3 +1,5 @@
+use std::time::SystemTime;
+
 use serde::Deserialize;
 
 use super::PlayerSession;
@@ -28,7 +30,7 @@ pub struct GetComputeCertificateResult {
     pub compute_name: String,
 }
 
-#[derive(Debug, Default, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "PascalCase", default)]
 pub struct GetFleetRoleCredentialsResult {
     pub assumed_role_user_arn: String,
@@ -36,7 +38,21 @@ pub struct GetFleetRoleCredentialsResult {
     pub access_key_id: String,
     pub secret_access_key: String,
     pub session_token: String,
-    pub expiration: i64,
+    #[serde(with = "crate::model::protocol::unix_time")]
+    pub expiration: SystemTime,
+}
+
+impl Default for GetFleetRoleCredentialsResult {
+    fn default() -> Self {
+        Self {
+            assumed_role_user_arn: Default::default(),
+            assumed_role_id: Default::default(),
+            access_key_id: Default::default(),
+            secret_access_key: Default::default(),
+            session_token: Default::default(),
+            expiration: SystemTime::UNIX_EPOCH,
+        }
+    }
 }
 
 #[derive(Debug, Default, Clone, Deserialize)]

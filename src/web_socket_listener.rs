@@ -2,11 +2,11 @@ use tokio::sync::{mpsc, oneshot};
 use tokio_tungstenite::tungstenite;
 
 use crate::{
-    connection_state::ConnectionState,
-    error::GameLiftErrorType,
+    connection_state::{ConnectionState, Feedback},
+    error::Error,
     model::{
         message,
-        protocol::{RequestContent, RequestMessage, ResponceMessage},
+        protocol::{RequestContent, RequestMessage},
     },
     server_parameters::ServerParameters,
 };
@@ -37,14 +37,12 @@ pub(crate) enum ServerEventInner {
 
 #[derive(Debug)]
 pub(crate) struct WebSocketListener {
-    request_sender: mpsc::UnboundedSender<(RequestMessage, oneshot::Sender<ResponceMessage>)>,
+    request_sender: mpsc::UnboundedSender<(RequestMessage, oneshot::Sender<Feedback>)>,
     event_receiver: Option<mpsc::Receiver<ServerEventInner>>,
 }
 
 impl WebSocketListener {
-    pub(crate) async fn connect(
-        server_parameters: &ServerParameters,
-    ) -> Result<Self, GameLiftErrorType> {
+    pub(crate) async fn connect(server_parameters: &ServerParameters) -> Result<Self, Error> {
         let connection_string = Self::create_uri(server_parameters);
         log::debug!("AWS GameLift Server WebSocket connection uri: {}", connection_string);
         match tokio_tungstenite::connect_async(connection_string).await {
@@ -57,14 +55,14 @@ impl WebSocketListener {
                 log::info!("Connected to GameLift API Gateway.");
                 Ok(Self { request_sender, event_receiver: Some(event_receiver) })
             }
-            Err(error) => Err(GameLiftErrorType::LocalConnectionFailed(error)),
+            Err(error) => Err(Error::LocalConnectionFailed(error)),
         }
     }
 
     pub(crate) async fn request<T>(
         &self,
         message: T,
-    ) -> Result<<T as RequestContent>::Response, GameLiftErrorType>
+    ) -> Result<<T as RequestContent>::Response, Error>
     where
         T: RequestContent,
     {
@@ -76,17 +74,17 @@ impl WebSocketListener {
         let (feedback_sender, feedback_receiver) = oneshot::channel();
         self.request_sender
             .send((message, feedback_sender))
-            .map_err(|_| GameLiftErrorType::WebSocketAlreadyClosed)?;
+            .map_err(|_| Error::LocalConnectionAlreadyClosed)?;
         let result = tokio::time::timeout(
             std::time::Duration::from_millis(SERVICE_CALL_TIMEOUT_MILLIS),
             feedback_receiver,
         )
         .await
-        .map_err(|_| GameLiftErrorType::RequestTimeout)?
-        .map_err(|_| GameLiftErrorType::WebSocketAlreadyClosed)?;
+        .map_err(|_| Error::RequestTimeout)?
+        .map_err(|_| Error::LocalConnectionAlreadyClosed)??;
 
         if result.status_code != tungstenite::http::StatusCode::OK.as_u16() {
-            Err(GameLiftErrorType::RequestUnsuccessful(result.status_code, result.error_message))
+            Err(Error::RequestUnsuccessful(result.status_code, result.error_message))
         } else {
             let mut rest_data = result.rest_data;
             if let serde_json::Value::Object(obj) = &rest_data {

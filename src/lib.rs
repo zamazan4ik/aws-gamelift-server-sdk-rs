@@ -13,9 +13,9 @@ mod server_state;
 mod web_socket_listener;
 
 pub use api::Api;
-pub use error::GameLiftErrorType;
+pub use error::Error;
 pub use log_parameters::LogParameters;
 pub use process_parameters::{
-    bind_channel_on_callbacks, ServerEvent, GameLiftEventCallbacks, ProcessParameters,
+    bind_channel_on_callbacks, GameLiftEventCallbacks, ProcessParameters, ServerEvent,
 };
 pub use server_parameters::ServerParameters;
