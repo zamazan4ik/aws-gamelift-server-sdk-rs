@@ -28,4 +28,4 @@ uuid = { version = "1.2.2", features = ["v4", "macro-diagnostics"] }
 env_logger = "0.9.0"
 aws-config = "0.53.0"
 aws-sdk-gamelift = "0.23.0"
-tokio = { features = ["full"] }
+tokio = { version = "1.24.2", features = ["full"] }

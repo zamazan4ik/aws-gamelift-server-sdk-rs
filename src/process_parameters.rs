@@ -27,7 +27,7 @@ where
 }
 
 /// This data type contains the set of parameters sent to the GameLift service
-/// in a [ProcessReady](crate::api::Api::process_ready) call.
+/// in a [`ProcessReady`](crate::api::Api::process_ready) call.
 pub struct ProcessParameters<Fn1, Fn2, Fn3, Fn4>
 where
     Fn1: 'static,
@@ -115,6 +115,7 @@ pub enum ServerEvent {
     OnHealthCheck(oneshot::Sender<bool>),
 }
 
+#[must_use]
 pub fn bind_channel_on_callbacks(
     port: u16,
     log_parameters: LogParameters,

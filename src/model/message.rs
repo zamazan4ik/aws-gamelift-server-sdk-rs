@@ -1,3 +1,5 @@
+#![allow(clippy::module_name_repetitions)]
+
 use std::{
     collections::HashMap,
     time::{SystemTime, UNIX_EPOCH},

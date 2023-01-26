@@ -44,6 +44,7 @@ pub mod unix_time {
 
     use serde::{Deserialize, Deserializer, Serializer};
 
+    #[allow(clippy::cast_possible_truncation, clippy::missing_errors_doc)]
     pub fn serialize<S>(value: &SystemTime, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -55,6 +56,7 @@ pub mod unix_time {
         serializer.serialize_i64(value)
     }
 
+    #[allow(clippy::cast_sign_loss, clippy::missing_errors_doc)]
     pub fn deserialize<'de, D>(deserializer: D) -> Result<SystemTime, D::Error>
     where
         D: Deserializer<'de>,

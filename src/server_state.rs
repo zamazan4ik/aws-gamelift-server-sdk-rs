@@ -282,14 +282,14 @@ impl ServerState {
         }
     }
 
-    pub async fn get_game_session_id(&self) -> Result<String, Error> {
+    pub fn get_game_session_id(&self) -> Result<String, Error> {
         match self.inner.get_game_session_id() {
             Some(game_session_id) => Ok(game_session_id),
             None => Err(Error::GameSessionIdNotSet),
         }
     }
 
-    pub async fn get_termination_time(&self) -> Result<SystemTime, Error> {
+    pub fn get_termination_time(&self) -> Result<SystemTime, Error> {
         match self.inner.get_termination_time() {
             Some(value) => Ok(value),
             None => Err(Error::TerminationTimeNotSet),
@@ -438,9 +438,7 @@ impl ServerState {
 
         // If we get a success response from APIGW with empty fields we're not on managed EC2
         if result.access_key_id.is_empty() {
-            return Err(Error::BadRequest(
-                "SDK is not running on managed EC2, fast-failing the request".to_owned(),
-            ));
+            return Err(Error::BadRequest("SDK is not running on managed EC2".to_owned()));
         }
 
         lock.insert(role_arn, result.clone());

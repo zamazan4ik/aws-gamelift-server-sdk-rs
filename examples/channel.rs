@@ -1,5 +1,5 @@
 use aws_gamelift_server_sdk_rs::{
-    bind_channel_on_callbacks, Api, ServerEvent, LogParameters, ServerParameters,
+    bind_channel_on_callbacks, Api, LogParameters, ServerEvent, ServerParameters,
 };
 
 #[tokio::main]

@@ -1,3 +1,5 @@
+#![allow(clippy::module_name_repetitions)]
+
 use std::time::SystemTime;
 
 use serde::Deserialize;
@@ -45,11 +47,11 @@ pub struct GetFleetRoleCredentialsResult {
 impl Default for GetFleetRoleCredentialsResult {
     fn default() -> Self {
         Self {
-            assumed_role_user_arn: Default::default(),
-            assumed_role_id: Default::default(),
-            access_key_id: Default::default(),
-            secret_access_key: Default::default(),
-            session_token: Default::default(),
+            assumed_role_user_arn: String::default(),
+            assumed_role_id: String::default(),
+            access_key_id: String::default(),
+            secret_access_key: String::default(),
+            session_token: String::default(),
             expiration: SystemTime::UNIX_EPOCH,
         }
     }

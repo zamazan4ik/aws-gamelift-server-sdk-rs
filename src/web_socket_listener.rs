@@ -83,9 +83,7 @@ impl WebSocketListener {
         .map_err(|_| Error::RequestTimeout)?
         .map_err(|_| Error::LocalConnectionAlreadyClosed)??;
 
-        if result.status_code != tungstenite::http::StatusCode::OK.as_u16() {
-            Err(Error::RequestUnsuccessful(result.status_code, result.error_message))
-        } else {
+        if result.status_code == tungstenite::http::StatusCode::OK.as_u16() {
             let mut rest_data = result.rest_data;
             if let serde_json::Value::Object(obj) = &rest_data {
                 if obj.is_empty() {
@@ -94,6 +92,8 @@ impl WebSocketListener {
                 }
             }
             Ok(serde_json::from_value(rest_data)?)
+        } else {
+            Err(Error::RequestUnsuccessful(result.status_code, result.error_message))
         }
     }
 
@@ -121,9 +121,9 @@ impl WebSocketListener {
         // Path to resource must end with "/"
         let web_socket_url = &server_parameters.web_socket_url;
         if web_socket_url.ends_with('/') {
-            format!("{}?{}", web_socket_url, query_string)
+            format!("{web_socket_url}?{query_string}")
         } else {
-            format!("{}/?{}", web_socket_url, query_string)
+            format!("{web_socket_url}/?{query_string}")
         }
     }
 }

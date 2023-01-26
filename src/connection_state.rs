@@ -43,7 +43,7 @@ impl ConnectionState {
         loop {
             let transition_close = tokio::select! {
                 request = self.request_receiver.recv(), if !request_closed => self.send_request(request).await,
-                Some(next) = self.web_socket.next() => self.listen(next).await,
+                Some(next) = self.web_socket.next() => self.listen(next),
                 else => break,
             };
             if transition_close {
@@ -74,18 +74,22 @@ impl ConnectionState {
 
                     if let Err(error) = self.web_socket.send(tungstenite::Message::Text(json)).await
                     {
-                        Self::do_feedback_error(feedback, msg.request_id, error);
+                        Self::do_feedback_error(feedback, &msg.request_id, error);
                         return false;
                     };
                     if msg.action == model::request::TerminateServerProcessRequest::ACTION_NAME {
                         self.terminate_request_id = Some(msg.request_id.clone());
                     }
                     if let Some(prev) = self.requests.insert(msg.request_id.clone(), feedback) {
-                        Self::do_feedback_error(prev, msg.request_id, Error::RequestWasOverwritten);
+                        Self::do_feedback_error(
+                            prev,
+                            &msg.request_id,
+                            Error::RequestWasOverwritten,
+                        );
                     }
                 }
                 Err(error) => {
-                    Self::do_feedback_error(feedback, msg.request_id, error);
+                    Self::do_feedback_error(feedback, &msg.request_id, error);
                 }
             };
 
@@ -98,19 +102,23 @@ impl ConnectionState {
         }
     }
 
-    async fn listen(&mut self, next: Result<tungstenite::Message, tungstenite::Error>) -> bool {
+    fn listen(&mut self, next: Result<tungstenite::Message, tungstenite::Error>) -> bool {
         match next {
             Ok(msg) => match msg {
                 tungstenite::Message::Text(t) => {
-                    if let Err(e) = self.reaction(t).await {
+                    if let Err(e) = self.reaction(&t) {
                         log::warn!("Reaction error: {e}");
                     }
                 }
                 tungstenite::Message::Binary(b) => {
-                    log::warn!("Received unknown binary massage: {b:?}")
+                    log::warn!("Received unknown binary massage: {b:?}");
                 }
-                tungstenite::Message::Ping(p) => log::trace!("Received ping: {p:?}"),
-                tungstenite::Message::Pong(p) => log::trace!("Received pong: {p:?}"),
+                tungstenite::Message::Ping(p) => {
+                    log::trace!("Received ping: {p:?}");
+                }
+                tungstenite::Message::Pong(p) => {
+                    log::trace!("Received pong: {p:?}");
+                }
                 tungstenite::Message::Close(cf) => {
                     if let Some(cf) = cf {
                         log::info!("Received close request: {cf}");
@@ -129,9 +137,9 @@ impl ConnectionState {
         false
     }
 
-    async fn reaction(&mut self, json: String) -> Result<(), Box<dyn std::error::Error>> {
-        log::debug!("Received socket message: \n{}", &json);
-        let message: ResponceMessage = serde_json::from_str(&json)?;
+    fn reaction(&mut self, json: &str) -> Result<(), Box<dyn std::error::Error>> {
+        log::debug!("Received socket message: \n{}", json);
+        let message: ResponceMessage = serde_json::from_str(json)?;
         if message.status_code != tungstenite::http::StatusCode::OK.as_u16()
             && !message.request_id.is_empty()
         {
@@ -201,7 +209,7 @@ impl ConnectionState {
 
     fn do_feedback_error(
         feedback: oneshot::Sender<Feedback>,
-        request_id: String,
+        request_id: &str,
         error: impl Into<Error>,
     ) {
         if let Err(Err(v)) = feedback.send(Err(error.into())) {

@@ -1,3 +1,5 @@
+#![allow(clippy::module_name_repetitions)]
+
 use serde::Serialize;
 
 use super::{protocol::RequestContent, responce_result, Player, PlayerSessionCreationPolicy};

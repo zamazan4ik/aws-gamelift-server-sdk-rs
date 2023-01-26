@@ -56,17 +56,17 @@ pub struct PlayerSession {
 impl Default for PlayerSession {
     fn default() -> Self {
         Self {
-            player_id: Default::default(),
-            player_session_id: Default::default(),
-            game_session_id: Default::default(),
-            fleet_id: Default::default(),
-            ip_address: Default::default(),
-            player_data: Default::default(),
-            port: Default::default(),
+            player_id: String::default(),
+            player_session_id: String::default(),
+            game_session_id: String::default(),
+            fleet_id: String::default(),
+            ip_address: String::default(),
+            player_data: String::default(),
+            port: u16::default(),
             creation_time: UNIX_EPOCH,
             termination_time: UNIX_EPOCH,
-            status: Default::default(),
-            dns_name: Default::default(),
+            status: PlayerSessionStatus::default(),
+            dns_name: String::default(),
         }
     }
 }
