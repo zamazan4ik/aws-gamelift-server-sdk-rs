@@ -19,7 +19,7 @@ const AUTH_TOKEN_KEY: &str = "Authorization";
 const COMPUTE_ID_KEY: &str = "ComputeId";
 const FLEET_ID_KEY: &str = "FleetId";
 
-const CHANNEL_BUFFER_SIZE: usize = 1024;
+pub(crate) const CHANNEL_BUFFER_SIZE: usize = 1024;
 const SERVICE_CALL_TIMEOUT_MILLIS: u64 = 20000;
 
 pub(crate) type WebSocket =
@@ -27,7 +27,7 @@ pub(crate) type WebSocket =
 
 #[derive(Debug)]
 #[allow(clippy::enum_variant_names)]
-pub(crate) enum GameLiftEventInner {
+pub(crate) enum ServerEventInner {
     OnStartGameSession(message::CreateGameSessionMessage),
     OnUpdateGameSession(message::UpdateGameSessionMessage),
     OnTerminateProcess(message::TerminateProcessMessage),
@@ -38,7 +38,7 @@ pub(crate) enum GameLiftEventInner {
 #[derive(Debug)]
 pub(crate) struct WebSocketListener {
     request_sender: mpsc::UnboundedSender<(RequestMessage, oneshot::Sender<ResponceMessage>)>,
-    event_receiver: Option<mpsc::Receiver<GameLiftEventInner>>,
+    event_receiver: Option<mpsc::Receiver<ServerEventInner>>,
 }
 
 impl WebSocketListener {
@@ -99,7 +99,7 @@ impl WebSocketListener {
         }
     }
 
-    pub(crate) fn take_event_receiver(&mut self) -> Option<mpsc::Receiver<GameLiftEventInner>> {
+    pub(crate) fn take_event_receiver(&mut self) -> Option<mpsc::Receiver<ServerEventInner>> {
         self.event_receiver.take()
     }
 

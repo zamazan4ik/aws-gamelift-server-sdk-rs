@@ -11,7 +11,7 @@ use crate::{
     model::{self, request, responce_result},
     process_parameters::ProcessParameters,
     server_parameters::ServerParameters,
-    web_socket_listener::{GameLiftEventInner, WebSocketListener},
+    web_socket_listener::{ServerEventInner, WebSocketListener},
     GameLiftEventCallbacks,
 };
 use tokio::sync::mpsc;
@@ -84,14 +84,14 @@ impl ServerStateInner {
 
 struct EventListener {
     inner: Arc<ServerStateInner>,
-    event_receiver: mpsc::Receiver<GameLiftEventInner>,
+    event_receiver: mpsc::Receiver<ServerEventInner>,
     process_parameters: Box<dyn GameLiftEventCallbacks>,
 }
 
 impl EventListener {
     fn new(
         inner: Arc<ServerStateInner>,
-        event_receiver: mpsc::Receiver<GameLiftEventInner>,
+        event_receiver: mpsc::Receiver<ServerEventInner>,
         process_parameters: impl GameLiftEventCallbacks + 'static,
     ) -> Self {
         Self { inner, event_receiver, process_parameters: Box::new(process_parameters) }
@@ -104,7 +104,7 @@ impl EventListener {
         loop {
             let event = tokio::select! {
                 e = self.event_receiver.recv() => e,
-                _ = interval.tick() => Some(GameLiftEventInner::OnHealthCheck()),
+                _ = interval.tick() => Some(ServerEventInner::OnHealthCheck()),
             };
 
             let event = match event {
@@ -113,22 +113,22 @@ impl EventListener {
             };
 
             match event {
-                GameLiftEventInner::OnStartGameSession(msg) => {
+                ServerEventInner::OnStartGameSession(msg) => {
                     self.on_start_game_session(msg).await;
                 }
-                GameLiftEventInner::OnUpdateGameSession(msg) => {
+                ServerEventInner::OnUpdateGameSession(msg) => {
                     self.on_update_game_session(msg).await;
                 }
-                GameLiftEventInner::OnTerminateProcess(msg) => {
+                ServerEventInner::OnTerminateProcess(msg) => {
                     self.on_terminate_process(msg.termination_time).await;
                 }
-                GameLiftEventInner::OnRefreshConnection(msg) => {
+                ServerEventInner::OnRefreshConnection(msg) => {
                     if let Err(e) = self.on_refresh_connection(msg).await {
                         log::error!("Refresh connection failure: {e}");
                         break;
                     }
                 }
-                GameLiftEventInner::OnHealthCheck() => {
+                ServerEventInner::OnHealthCheck() => {
                     self.report_health().await;
                 }
             }

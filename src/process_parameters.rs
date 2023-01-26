@@ -1,6 +1,14 @@
-use std::{future::Future, pin::Pin};
+use std::{
+    future::{Future, Ready},
+    pin::Pin,
+};
 
-use crate::model::{GameSession, UpdateGameSession};
+use tokio::sync::{mpsc, oneshot};
+
+use crate::{
+    log_parameters::LogParameters,
+    model::{GameSession, UpdateGameSession},
+};
 
 pub trait GameLiftEventCallbacks
 where
@@ -61,7 +69,7 @@ where
     pub port: u16,
 
     /// Object with a list of directory paths to game session log files.
-    pub log_parameters: crate::log_parameters::LogParameters,
+    pub log_parameters: LogParameters,
 }
 
 impl<Fn1, Fut1, Fn2, Fut2, Fn3, Fut3, Fn4, Fut4> GameLiftEventCallbacks
@@ -97,4 +105,71 @@ where
     fn on_health_check(&mut self) -> Pin<Box<dyn Future<Output = bool> + Send>> {
         Box::pin((self.on_health_check)())
     }
+}
+
+#[derive(Debug)]
+pub enum ServerEvent {
+    OnStartGameSession(GameSession),
+    OnUpdateGameSession(UpdateGameSession),
+    OnProcessTerminate(),
+    OnHealthCheck(oneshot::Sender<bool>),
+}
+
+pub fn bind_channel_on_callbacks(
+    port: u16,
+    log_parameters: LogParameters,
+) -> (
+    ProcessParameters<
+        impl Fn(GameSession) -> Ready<()>,
+        impl Fn(UpdateGameSession) -> Ready<()>,
+        impl Fn() -> Ready<()>,
+        impl Fn() -> Pin<Box<dyn Future<Output = bool> + Send + Sync>>,
+    >,
+    mpsc::Receiver<ServerEvent>,
+) {
+    let (send, recv) =
+        mpsc::channel::<ServerEvent>(crate::web_socket_listener::CHANNEL_BUFFER_SIZE);
+    let this = ProcessParameters {
+        port,
+        log_parameters,
+        on_start_game_session: {
+            let send = send.clone();
+            move |game_session| -> Ready<()> {
+                if let Err(err) = send.try_send(ServerEvent::OnStartGameSession(game_session)) {
+                    eprintln!("{err}");
+                }
+                std::future::ready(())
+            }
+        },
+        on_update_game_session: {
+            let send = send.clone();
+            move |update_game_session| {
+                if let Err(err) =
+                    send.try_send(ServerEvent::OnUpdateGameSession(update_game_session))
+                {
+                    eprintln!("{err}");
+                }
+                std::future::ready(())
+            }
+        },
+        on_process_terminate: {
+            let send = send.clone();
+            move || {
+                if let Err(err) = send.try_send(ServerEvent::OnProcessTerminate()) {
+                    eprintln!("{err}");
+                }
+                std::future::ready(())
+            }
+        },
+        on_health_check: {
+            move || -> Pin<Box<dyn Future<Output = bool> + Send + Sync>> {
+                let (ts, tr) = oneshot::channel::<bool>();
+                if let Err(err) = send.try_send(ServerEvent::OnHealthCheck(ts)) {
+                    eprintln!("{err}");
+                }
+                Box::pin(async move { tr.await.unwrap_or(false) })
+            }
+        },
+    };
+    (this, recv)
 }

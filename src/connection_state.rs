@@ -9,13 +9,13 @@ use crate::{
         self,
         protocol::{self, RequestContent, RequestMessage, ResponceMessage},
     },
-    web_socket_listener::{GameLiftEventInner, WebSocket},
+    web_socket_listener::{ServerEventInner, WebSocket},
 };
 
 pub(crate) struct ConnectionState {
     web_socket: WebSocket,
     request_receiver: mpsc::UnboundedReceiver<(RequestMessage, oneshot::Sender<ResponceMessage>)>,
-    event_sender: mpsc::Sender<GameLiftEventInner>,
+    event_sender: mpsc::Sender<ServerEventInner>,
     requests: HashMap<String, oneshot::Sender<ResponceMessage>>,
     terminate_request_id: Option<String>,
 }
@@ -27,7 +27,7 @@ impl ConnectionState {
             RequestMessage,
             oneshot::Sender<ResponceMessage>,
         )>,
-        event_sender: mpsc::Sender<GameLiftEventInner>,
+        event_sender: mpsc::Sender<ServerEventInner>,
     ) -> Self {
         Self {
             web_socket,
@@ -157,22 +157,22 @@ impl ConnectionState {
             model::message::CreateGameSessionMessage::ACTION_NAME => {
                 let data: model::message::CreateGameSessionMessage =
                     serde_json::from_value(message.rest_data)?;
-                self.event_sender.try_send(GameLiftEventInner::OnStartGameSession(data))?;
+                self.event_sender.try_send(ServerEventInner::OnStartGameSession(data))?;
             }
             model::message::RefreshConnectionMessage::ACTION_NAME => {
                 let data: model::message::RefreshConnectionMessage =
                     serde_json::from_value(message.rest_data)?;
-                self.event_sender.try_send(GameLiftEventInner::OnRefreshConnection(data))?;
+                self.event_sender.try_send(ServerEventInner::OnRefreshConnection(data))?;
             }
             model::message::TerminateProcessMessage::ACTION_NAME => {
                 let data: model::message::TerminateProcessMessage =
                     serde_json::from_value(message.rest_data)?;
-                self.event_sender.try_send(GameLiftEventInner::OnTerminateProcess(data))?;
+                self.event_sender.try_send(ServerEventInner::OnTerminateProcess(data))?;
             }
             model::message::UpdateGameSessionMessage::ACTION_NAME => {
                 let data: model::message::UpdateGameSessionMessage =
                     serde_json::from_value(message.rest_data)?;
-                self.event_sender.try_send(GameLiftEventInner::OnUpdateGameSession(data))?;
+                self.event_sender.try_send(ServerEventInner::OnUpdateGameSession(data))?;
             }
             _ => {
                 if message.request_id.is_empty() {
