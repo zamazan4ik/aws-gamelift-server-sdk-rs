@@ -1,6 +1,4 @@
-use aws_gamelift_server_sdk_rs::{
-    bind_channel_on_callbacks, Api, LogParameters, ServerEvent, ServerParameters,
-};
+use aws_gamelift_server_sdk_rs::*;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

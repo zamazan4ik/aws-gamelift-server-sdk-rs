@@ -2,7 +2,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "PascalCase")]
-pub struct RequestMessage {
+pub(crate) struct RequestMessage {
     pub action: String,
     pub request_id: String,
 
@@ -12,7 +12,7 @@ pub struct RequestMessage {
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "PascalCase", default)]
-pub struct ResponceMessage {
+pub(crate) struct ResponceMessage {
     pub action: String,
     pub request_id: String,
     pub status_code: u16,

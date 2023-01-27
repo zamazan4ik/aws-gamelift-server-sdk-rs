@@ -10,7 +10,7 @@ use crate::{
     model::{GameSession, UpdateGameSession},
 };
 
-pub trait GameLiftEventCallbacks
+pub trait ServerEventCallbacks
 where
     Self: Send,
 {
@@ -72,7 +72,7 @@ where
     pub log_parameters: LogParameters,
 }
 
-impl<Fn1, Fut1, Fn2, Fut2, Fn3, Fut3, Fn4, Fut4> GameLiftEventCallbacks
+impl<Fn1, Fut1, Fn2, Fut2, Fn3, Fut3, Fn4, Fut4> ServerEventCallbacks
     for ProcessParameters<Fn1, Fn2, Fn3, Fn4>
 where
     Fn1: FnMut(GameSession) -> Fut1 + Send + Sync,

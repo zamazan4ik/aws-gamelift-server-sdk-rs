@@ -3,10 +3,10 @@ use tokio_tungstenite::tungstenite;
 
 use crate::{
     connection_state::{ConnectionState, Feedback},
-    error::Error,
     model::{
         message,
         protocol::{RequestContent, RequestMessage},
+        Error,
     },
     server_parameters::ServerParameters,
 };

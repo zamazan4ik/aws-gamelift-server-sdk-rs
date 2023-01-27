@@ -8,12 +8,11 @@ use std::{
 };
 
 use crate::{
-    error::Error,
-    model::{self, request, responce_result},
+    model::{self, request, responce_result, Error},
     process_parameters::ProcessParameters,
     server_parameters::ServerParameters,
     web_socket_listener::{ServerEventInner, WebSocketListener},
-    GameLiftEventCallbacks,
+    ServerEventCallbacks,
 };
 use tokio::sync::mpsc;
 
@@ -90,14 +89,14 @@ impl ServerStateInner {
 struct EventListener {
     inner: Arc<ServerStateInner>,
     event_receiver: mpsc::Receiver<ServerEventInner>,
-    process_parameters: Box<dyn GameLiftEventCallbacks>,
+    process_parameters: Box<dyn ServerEventCallbacks>,
 }
 
 impl EventListener {
     fn new(
         inner: Arc<ServerStateInner>,
         event_receiver: mpsc::Receiver<ServerEventInner>,
-        process_parameters: impl GameLiftEventCallbacks + 'static,
+        process_parameters: impl ServerEventCallbacks + 'static,
     ) -> Self {
         Self { inner, event_receiver, process_parameters: Box::new(process_parameters) }
     }
@@ -240,7 +239,7 @@ impl ServerState {
         process_parameters: ProcessParameters<Fn1, Fn2, Fn3, Fn4>,
     ) -> Result<(), Error>
     where
-        crate::ProcessParameters<Fn1, Fn2, Fn3, Fn4>: crate::GameLiftEventCallbacks,
+        crate::ProcessParameters<Fn1, Fn2, Fn3, Fn4>: crate::ServerEventCallbacks,
     {
         let inner = &self.inner;
 
@@ -396,7 +395,7 @@ impl ServerState {
 
     pub async fn get_fleet_role_credentials(
         &self,
-        request: model::GetFleetRoleCredentialsRequest,
+        request: request::GetFleetRoleCredentialsRequest,
     ) -> Result<responce_result::GetFleetRoleCredentialsResult, Error> {
         let mut lock = self.instance_role_result_cache.lock().await;
         let role_arn = request.role_arn;

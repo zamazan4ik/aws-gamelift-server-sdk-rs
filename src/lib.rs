@@ -4,7 +4,6 @@
 
 mod api;
 mod connection_state;
-mod error;
 mod log_parameters;
 pub mod model;
 mod process_parameters;
@@ -13,9 +12,13 @@ mod server_state;
 mod web_socket_listener;
 
 pub use api::Api;
-pub use error::Error;
 pub use log_parameters::LogParameters;
+pub use model::request::{
+    DescribePlayerSessionsRequest, GetFleetRoleCredentialsRequest, StartMatchBackfillRequest,
+    StopMatchBackfillRequest,
+};
+pub use model::PlayerSessionCreationPolicy;
 pub use process_parameters::{
-    bind_channel_on_callbacks, GameLiftEventCallbacks, ProcessParameters, ServerEvent,
+    bind_channel_on_callbacks, ProcessParameters, ServerEvent, ServerEventCallbacks,
 };
 pub use server_parameters::ServerParameters;

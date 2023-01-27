@@ -8,9 +8,9 @@ use crate::{
     model::{
         self,
         protocol::{self, RequestContent, RequestMessage, ResponceMessage},
+        Error,
     },
     web_socket_listener::{ServerEventInner, WebSocket},
-    Error,
 };
 
 pub(crate) type Feedback = Result<ResponceMessage, Error>;

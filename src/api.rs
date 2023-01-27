@@ -1,7 +1,4 @@
-use crate::{
-    model::{self, responce_result},
-    Error,
-};
+use crate::model::{self, request, responce_result, Error};
 
 const SDK_VERSION: &str = "5.0.0";
 
@@ -42,7 +39,7 @@ impl Api {
         process_parameters: crate::ProcessParameters<Fn1, Fn2, Fn3, Fn4>,
     ) -> Result<(), Error>
     where
-        crate::ProcessParameters<Fn1, Fn2, Fn3, Fn4>: crate::GameLiftEventCallbacks,
+        crate::ProcessParameters<Fn1, Fn2, Fn3, Fn4>: crate::ServerEventCallbacks,
     {
         self.state.process_ready(process_parameters).await
     }
@@ -152,7 +149,7 @@ impl Api {
     /// If the request failed.
     pub async fn describe_player_sessions(
         &self,
-        describe_player_sessions_request: model::DescribePlayerSessionsRequest,
+        describe_player_sessions_request: request::DescribePlayerSessionsRequest,
     ) -> Result<responce_result::DescribePlayerSessionsResult, Error> {
         self.state.describe_player_sessions(describe_player_sessions_request).await
     }
@@ -177,7 +174,7 @@ impl Api {
     /// If the request failed.
     pub async fn start_match_backfill(
         &self,
-        request: model::StartMatchBackfillRequest,
+        request: request::StartMatchBackfillRequest,
     ) -> Result<responce_result::StartMatchBackfillResult, Error> {
         self.state.backfill_matchmaking(request).await
     }
@@ -191,7 +188,7 @@ impl Api {
     /// If the request failed.
     pub async fn stop_match_backfill(
         &self,
-        request: model::StopMatchBackfillRequest,
+        request: request::StopMatchBackfillRequest,
     ) -> Result<(), Error> {
         self.state.stop_matchmaking(request).await
     }
@@ -209,7 +206,7 @@ impl Api {
     /// or SDK is not running on managed EC2.
     pub async fn get_fleet_role_credentials(
         &self,
-        request: model::GetFleetRoleCredentialsRequest,
+        request: request::GetFleetRoleCredentialsRequest,
     ) -> Result<responce_result::GetFleetRoleCredentialsResult, Error> {
         self.state.get_fleet_role_credentials(request).await
     }
