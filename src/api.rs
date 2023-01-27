@@ -156,10 +156,10 @@ impl Api {
 
     /// Sends a request to find new players for open slots in a game session
     /// created with FlexMatch. See also the AWS SDK action
-    /// [`start_match_backfill`](crate::api::Api::start_match_backfill). With this
-    /// action, match backfill requests can be initiated by a game server
-    /// process that is hosting the game session. Learn more about the
-    /// FlexMatch backfill feature.
+    /// [`start_match_backfill`](crate::api::Api::start_match_backfill). With
+    /// this action, match backfill requests can be initiated by a game
+    /// server process that is hosting the game session. Learn more about
+    /// the FlexMatch backfill feature.
     ///
     /// This action is asynchronous. If new players are successfully matched,
     /// the GameLift service delivers updated matchmaker data using the callback
@@ -180,9 +180,9 @@ impl Api {
     }
 
     /// Cancels an active match backfill request that was created with
-    /// [`start_match_backfill`](crate::api::Api::start_match_backfill). See also
-    /// the AWS SDK action `StopMatchmaking()`. Learn more about the FlexMatch
-    /// backfill feature.
+    /// [`start_match_backfill`](crate::api::Api::start_match_backfill). See
+    /// also the AWS SDK action `StopMatchmaking()`. Learn more about the
+    /// FlexMatch backfill feature.
     ///
     /// # Errors
     /// If the request failed.

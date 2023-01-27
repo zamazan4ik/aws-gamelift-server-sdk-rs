@@ -13,11 +13,13 @@ mod web_socket_listener;
 
 pub use api::Api;
 pub use log_parameters::LogParameters;
-pub use model::request::{
-    DescribePlayerSessionsRequest, GetFleetRoleCredentialsRequest, StartMatchBackfillRequest,
-    StopMatchBackfillRequest,
+pub use model::{
+    request::{
+        DescribePlayerSessionsRequest, GetFleetRoleCredentialsRequest, StartMatchBackfillRequest,
+        StopMatchBackfillRequest,
+    },
+    PlayerSessionCreationPolicy,
 };
-pub use model::PlayerSessionCreationPolicy;
 pub use process_parameters::{
     bind_channel_on_callbacks, ProcessParameters, ServerEvent, ServerEventCallbacks,
 };

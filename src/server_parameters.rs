@@ -1,5 +1,5 @@
-/// Connection information and methods for maintaining the connection between GameLift
-/// and your game server.
+/// Connection information and methods for maintaining the connection between
+/// GameLift and your game server.
 #[derive(Debug, Default)]
 pub struct ServerParameters {
     pub web_socket_url: String,

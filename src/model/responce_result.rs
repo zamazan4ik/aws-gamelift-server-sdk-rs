@@ -20,7 +20,10 @@ impl DescribePlayerSessionsResult {
         if self.player_sessions.len() < MAX_PLAYER_SESSIONS {
             self.player_sessions.push(value);
         } else {
-            log::debug!("PlayerSessions count is greater than or equal to max player sessions {MAX_PLAYER_SESSIONS}.");
+            log::debug!(
+                "PlayerSessions count is greater than or equal to max player sessions \
+                 {MAX_PLAYER_SESSIONS}."
+            );
         }
     }
 }

@@ -144,7 +144,8 @@ impl ConnectionState {
             && !message.request_id.is_empty()
         {
             log::info!(
-                "Received {} is unsuccessful with status code {}: request_id {}, error_message '{}'",
+                "Received {} is unsuccessful with status code {}: request_id {}, error_message \
+                 '{}'",
                 message.action,
                 message.status_code,
                 message.request_id,
@@ -159,7 +160,8 @@ impl ConnectionState {
             );
         }
 
-        // Use try_send() to secure against DoS attacks (I don't think it makes much sense)
+        // Use try_send() to secure against DoS attacks (I don't think it makes much
+        // sense)
         match message.action.as_str() {
             model::message::CreateGameSessionMessage::ACTION_NAME => {
                 let data: model::message::CreateGameSessionMessage =

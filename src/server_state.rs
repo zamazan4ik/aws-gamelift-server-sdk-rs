@@ -23,7 +23,8 @@ const ENVIRONMENT_VARIABLE_FLEET_ID: &str = "GAMELIFT_SDK_FLEET_ID";
 const ENVIRONMENT_VARIABLE_AUTH_TOKEN: &str = "GAMELIFT_SDK_AUTH_TOKEN";
 
 const ROLE_SESSION_NAME_MAX_LENGTH: usize = 64;
-// When within 15 minutes of expiration we retrieve new instance role credentials
+// When within 15 minutes of expiration we retrieve new instance role
+// credentials
 const INSTANCE_ROLE_CREDENTIAL_TTL_MIN: Duration = Duration::from_secs(15 * 60);
 
 const HEALTHCHECK_INTERVAL_SECONDS: u64 = 60;
@@ -400,7 +401,8 @@ impl ServerState {
         let mut lock = self.instance_role_result_cache.lock().await;
         let role_arn = request.role_arn;
 
-        // Check if we're cached credentials recently that still have at least 15 minutes before expiration
+        // Check if we're cached credentials recently that still have at least 15
+        // minutes before expiration
         if let Some(previous_result) = lock.get(&role_arn) {
             let now = SystemTime::now();
             if previous_result.expiration - INSTANCE_ROLE_CREDENTIAL_TTL_MIN > now {
@@ -435,7 +437,8 @@ impl ServerState {
         };
         let result = self.inner.request(request).await?;
 
-        // If we get a success response from APIGW with empty fields we're not on managed EC2
+        // If we get a success response from APIGW with empty fields we're not on
+        // managed EC2
         if result.access_key_id.is_empty() {
             return Err(Error::BadRequest("SDK is not running on managed EC2".to_owned()));
         }

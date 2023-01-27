@@ -34,8 +34,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         auth_token,
     );
 
-    // Alternatively, you can use the default if the server is hosted only on GameLift managed EC2 instances.
-    // let server_parameters = ServerParameters::default();
+    // Alternatively, you can use the default if the server is hosted only on
+    // GameLift managed EC2 instances. let server_parameters =
+    // ServerParameters::default();
 
     API.set(Api::init_sdk(server_parameters).await?).unwrap();
 
