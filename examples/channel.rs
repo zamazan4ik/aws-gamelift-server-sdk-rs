@@ -1,8 +1,4 @@
-use std::sync::Arc;
-
 use aws_gamelift_server_sdk_rs::*;
-
-static API: tokio::sync::OnceCell<Api> = tokio::sync::OnceCell::const_new();
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -38,47 +34,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // GameLift managed EC2 instances. let server_parameters =
     // ServerParameters::default();
 
-    API.set(Api::init_sdk(server_parameters).await?).unwrap();
+    let api = Api::init_sdk(server_parameters).await?;
 
-    let barrier = Arc::new(tokio::sync::Barrier::new(2));
+    let (process_parameters, mut event_receiver) = bind_channel_on_callbacks(port, log_parameters);
+    api.process_ready(process_parameters).await?;
 
-    API.get()
-        .unwrap()
-        .process_ready(ProcessParameters {
-            port,
-            log_parameters,
-            on_start_game_session: |game_session| async move {
-                log::info!("{:?}", game_session);
+    loop {
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => break,
+            Some(event) = event_receiver.recv() => {
+                match event {
+                    ServerEvent::OnStartGameSession(game_session) => {
+                        log::info!("{:?}", game_session);
 
-                API.get()
-                    .unwrap()
-                    .activate_game_session()
-                    .await
-                    .expect("Cannot activate game session");
+                        api.activate_game_session().await?;
 
-                log::info!("Session active!");
-            },
-            on_update_game_session: |update_game_session| async move {
-                log::info!("{:?}", update_game_session)
-            },
-            on_process_terminate: {
-                let barrier = barrier.clone();
-                move || {
-                    let barrier = barrier.clone();
-                    async move {
-                        barrier.wait().await;
+                        log::info!("Session active!");
+                    }
+                    ServerEvent::OnUpdateGameSession(update_game_session) => {
+                        log::info!("{:?}", update_game_session)
+                    }
+                    ServerEvent::OnProcessTerminate() => {
+                        break;
+                    }
+                    ServerEvent::OnHealthCheck(feedback) => {
+                        let _ = feedback.send(true);
                     }
                 }
-            },
-            on_health_check: || async { true },
-        })
-        .await?;
-
-    tokio::select! {
-        _ = tokio::signal::ctrl_c() => {}
-        _ = barrier.wait() => {}
+            }
+            else => break,
+        }
     }
 
-    API.get().unwrap().process_ending().await?;
+    api.process_ending().await?;
     Ok(())
 }

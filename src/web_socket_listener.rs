@@ -1,168 +1,129 @@
-use futures_util::StreamExt;
+use tokio::sync::{mpsc, oneshot};
+use tokio_tungstenite::tungstenite;
 
-const HOSTNAME: &str = "127.0.0.1";
-const PORT: i32 = 5759;
+use crate::{
+    connection_state::{ConnectionState, Feedback},
+    model::{
+        message,
+        protocol::{RequestContent, RequestMessage},
+        Error,
+    },
+    server_parameters::ServerParameters,
+};
+
 const PID_KEY: &str = "pID";
 const SDK_VERSION_KEY: &str = "sdkVersion";
 const FLAVOR_KEY: &str = "sdkLanguage";
 const FLAVOR: &str = "Rust";
+const AUTH_TOKEN_KEY: &str = "Authorization";
+const COMPUTE_ID_KEY: &str = "ComputeId";
+const FLEET_ID_KEY: &str = "FleetId";
 
-pub struct WebSocketListener {
-    handle: Option<tokio::task::JoinHandle<()>>,
-    state: std::sync::Arc<tokio::sync::RwLock<crate::server_state::ServerStateInner>>,
+pub(crate) const CHANNEL_BUFFER_SIZE: usize = 1024;
+const SERVICE_CALL_TIMEOUT_MILLIS: u64 = 20000;
+
+pub(crate) type WebSocket =
+    tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
+
+#[derive(Debug)]
+#[allow(clippy::enum_variant_names)]
+pub(crate) enum ServerEventInner {
+    OnStartGameSession(message::CreateGameSessionMessage),
+    OnUpdateGameSession(message::UpdateGameSessionMessage),
+    OnTerminateProcess(message::TerminateProcessMessage),
+    OnRefreshConnection(message::RefreshConnectionMessage),
+    OnHealthCheck(),
+}
+
+#[derive(Debug)]
+pub(crate) struct WebSocketListener {
+    request_sender: mpsc::UnboundedSender<(RequestMessage, oneshot::Sender<Feedback>)>,
+    event_receiver: Option<mpsc::Receiver<ServerEventInner>>,
 }
 
 impl WebSocketListener {
-    pub fn new(
-        state: std::sync::Arc<tokio::sync::RwLock<crate::server_state::ServerStateInner>>,
-    ) -> Self {
-        Self { handle: None, state }
-    }
-
-    pub fn disconnect(&self) -> bool {
-        if let Some(handle) = &self.handle {
-            handle.abort();
-            return true;
+    pub(crate) async fn connect(server_parameters: &ServerParameters) -> Result<Self, Error> {
+        let connection_string = Self::create_uri(server_parameters);
+        log::debug!("AWS GameLift Server WebSocket connection uri: {}", connection_string);
+        match tokio_tungstenite::connect_async(connection_string).await {
+            Ok((web_socket, _)) => {
+                let (request_sender, request_receiver) = mpsc::unbounded_channel();
+                let (event_sender, event_receiver) = mpsc::channel(CHANNEL_BUFFER_SIZE);
+                let connection_state =
+                    ConnectionState::new(web_socket, request_receiver, event_sender);
+                tokio::spawn(connection_state.run());
+                log::info!("Connected to GameLift API Gateway.");
+                Ok(Self { request_sender, event_receiver: Some(event_receiver) })
+            }
+            Err(error) => Err(Error::LocalConnectionFailed(error)),
         }
-
-        false
     }
 
-    pub async fn connect(&mut self) -> Result<(), crate::error::GameLiftErrorType> {
-        self.perform_connect().await.map_err(|error| {
-            println!("{:?}", error);
-            crate::error::GameLiftErrorType::LocalConnectionFailed
-        })
-    }
+    pub(crate) async fn request<T>(
+        &self,
+        message: T,
+    ) -> Result<<T as RequestContent>::Response, Error>
+    where
+        T: RequestContent,
+    {
+        let message = RequestMessage {
+            action: T::ACTION_NAME.to_owned(),
+            request_id: uuid::Uuid::new_v4().to_string(),
+            content: serde_json::to_value(message)?,
+        };
+        let (feedback_sender, feedback_receiver) = oneshot::channel();
+        self.request_sender
+            .send((message, feedback_sender))
+            .map_err(|_| Error::LocalConnectionAlreadyClosed)?;
+        let result = tokio::time::timeout(
+            std::time::Duration::from_millis(SERVICE_CALL_TIMEOUT_MILLIS),
+            feedback_receiver,
+        )
+        .await
+        .map_err(|_| Error::RequestTimeout)?
+        .map_err(|_| Error::LocalConnectionAlreadyClosed)??;
 
-    async fn perform_connect(&mut self) -> Result<(), tokio_tungstenite::tungstenite::Error> {
-        let connection_string = Self::create_uri();
-        log::debug!("AWS GameLift Server WebSocket connection string: {}", connection_string);
-        let (mut ws_stream, _) = tokio_tungstenite::connect_async(connection_string).await?;
-
-        let callback_handler = self.state.clone();
-        self.handle = Some(tokio::spawn(async move {
-            while let Some(msg) = ws_stream.next().await {
-                let msg = msg.unwrap();
-                if msg.is_text() {
-                    let message_text = msg.into_text().unwrap();
-                    let v: serde_json::Value = serde_json::from_str(message_text.as_str()).unwrap();
-                    let message_type =
-                        get_inner_message_type(&v).expect("Unexpected received message");
-
-                    match message_type {
-                        ReceivedMessageType::ActivateGameSession(message) => {
-                            log::info!("Received ActivateGameSession event");
-                            callback_handler
-                                .read()
-                                .await
-                                .on_start_game_session(message.game_session)
-                                .await;
-                        }
-                        ReceivedMessageType::UpdateGameSession(message) => {
-                            log::info!("Received UpdateGameSession event");
-
-                            let game_session = message.game_session.unwrap();
-                            let update_reason = message.update_reason;
-                            callback_handler
-                                .read()
-                                .await
-                                .on_update_game_session(
-                                    game_session,
-                                    update_reason,
-                                    message.backfill_ticket_id,
-                                )
-                                .await;
-                        }
-                        ReceivedMessageType::TerminateProcess(message) => {
-                            log::info!("Received TerminateProcess event");
-
-                            callback_handler
-                                .read()
-                                .await
-                                .on_terminate_process(message.termination_time.unwrap())
-                                .await;
-                        }
-                    }
-                } else if msg.is_close() {
-                    log::debug!("Socket disconnected. Message: {}", msg);
+        if result.status_code == tungstenite::http::StatusCode::OK.as_u16() {
+            let mut rest_data = result.rest_data;
+            if let serde_json::Value::Object(obj) = &rest_data {
+                if obj.is_empty() {
+                    // Allow conversion to ()
+                    rest_data = serde_json::Value::Null;
                 }
             }
-        }));
-
-        Ok(())
+            Ok(serde_json::from_value(rest_data)?)
+        } else {
+            Err(Error::RequestUnsuccessful(result.status_code, result.error_message))
+        }
     }
 
-    fn create_uri() -> String {
+    pub(crate) fn take_event_receiver(&mut self) -> Option<mpsc::Receiver<ServerEventInner>> {
+        self.event_receiver.take()
+    }
+
+    fn create_uri(server_parameters: &ServerParameters) -> String {
         let query_string = format!(
-            "{}={}&{}={}&{}={}",
+            "{}={}&{}={}&{}={}&{}={}&{}={}&{}={}",
             PID_KEY,
-            std::process::id(),
+            server_parameters.process_id,
             SDK_VERSION_KEY,
-            crate::api::SDK_VERSION,
+            crate::api::Api::get_sdk_version(),
             FLAVOR_KEY,
-            FLAVOR
+            FLAVOR,
+            AUTH_TOKEN_KEY,
+            server_parameters.auth_token,
+            COMPUTE_ID_KEY,
+            server_parameters.host_id,
+            FLEET_ID_KEY,
+            server_parameters.fleet_id,
         );
 
-        format!("ws://{}:{}?{}", HOSTNAME, PORT, query_string)
-    }
-}
-
-enum ReceivedMessageType {
-    ActivateGameSession(crate::entity::ActivateGameSession),
-    UpdateGameSession(crate::entity::UpdateGameSession),
-    TerminateProcess(crate::entity::TerminateProcess),
-}
-
-fn remove_type_info_from_json(source: &serde_json::Value) -> serde_json::Value {
-    match source {
-        serde_json::Value::Object(m) => {
-            let mut new_fields = serde_json::Map::new();
-            for (k, v) in m {
-                if k != "@type" {
-                    new_fields.insert(k.clone(), v.clone());
-                }
-            }
-            serde_json::Value::Object(new_fields)
-        }
-        v => v.clone(),
-    }
-}
-
-fn get_inner_message_type(
-    v: &serde_json::Value,
-) -> Result<ReceivedMessageType, crate::error::GameLiftErrorType> {
-    if let Some(inner_message) = v.get("innerMessage") {
-        if let Some(message_type) = inner_message.get("@type") {
-            if let Some(message_type) = message_type.as_str() {
-                match message_type {
-                    "type.googleapis.com/com.amazon.whitewater.auxproxy.pbuffer.\
-                     ActivateGameSession" => {
-                        let unpack_result: crate::entity::ActivateGameSession =
-                            serde_json::from_value(remove_type_info_from_json(inner_message))
-                                .unwrap();
-                        return Ok(ReceivedMessageType::ActivateGameSession(unpack_result));
-                    }
-                    "type.googleapis.com/com.amazon.whitewater.auxproxy.pbuffer.\
-                     UpdateGameSession" => {
-                        let unpack_result: crate::entity::UpdateGameSession =
-                            serde_json::from_value(remove_type_info_from_json(inner_message))
-                                .unwrap();
-                        return Ok(ReceivedMessageType::UpdateGameSession(unpack_result));
-                    }
-                    "type.googleapis.com/com.amazon.whitewater.auxproxy.pbuffer.\
-                     TerminateProcess" => {
-                        let unpack_result: crate::entity::TerminateProcess =
-                            serde_json::from_value(remove_type_info_from_json(inner_message))
-                                .unwrap();
-                        return Ok(ReceivedMessageType::TerminateProcess(unpack_result));
-                    }
-
-                    _ => {}
-                };
-            }
+        // Path to resource must end with "/"
+        let web_socket_url = &server_parameters.web_socket_url;
+        if web_socket_url.ends_with('/') {
+            format!("{web_socket_url}?{query_string}")
+        } else {
+            format!("{web_socket_url}/?{query_string}")
         }
     }
-
-    Err(crate::error::GameLiftErrorType::UnexpectedWebSocketMessage)
 }
